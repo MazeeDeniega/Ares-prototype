@@ -22,14 +22,20 @@ class AuthController extends Controller
 
         if (Auth::attempt($credentials)) {
             $user = Auth::user();
+            $request->session()->regenerate();
             
             if ($user->role === 'admin') {
-                return redirect('/admin/dashboard');
+                return redirect('/admin');
             } elseif ($user->role === 'recruiter') {
-                return redirect('/dashboard');
+                return redirect('/recruiter');
             } else {
                 return redirect('/jobs');
             }
+            if ($request->expectsJson()) {
+            return response()->json(['redirect' => '/dashboard']);
+            }
+
+            return redirect()->intended('/dashboard');
         }
         
         return back()->withErrors(['email' => 'Invalid credentials']);
@@ -68,7 +74,7 @@ class AuthController extends Controller
     Auth::login($user);
 
     if ($request->role === 'recruiter') {
-        return redirect('/dashboard');
+        return redirect('/recruiter');
     } else {
         return redirect('/jobs');
     }

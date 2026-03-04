@@ -28,8 +28,8 @@ Route::get('/', function () {
     $user = Auth::user();
     
     return match($user->role) {
-        'admin' => redirect('/admin/dashboard'),
-        'recruiter' => redirect('/dashboard'),
+        'admin' => redirect('/admin'),
+        'recruiter' => redirect('/recruiter'),
         'applicant' => redirect('/jobs'),
         default => redirect('/login'),
     };
@@ -48,7 +48,7 @@ Route::middleware(['auth', 'role:applicant'])->group(function () {
 
 // Recruiter
 Route::middleware(['auth', 'role:recruiter'])->group(function () {
-    Route::get('/dashboard', [DashboardController::class, 'index']);
+    Route::get('/recruiter', [DashboardController::class, 'index']);
     Route::post('/jobs', [JobController::class, 'store']);
     Route::delete('/jobs/{id}', [JobController::class, 'destroy']);
     Route::get('/preferences/edit', [PreferenceController::class, 'edit']);
@@ -63,9 +63,14 @@ Route::middleware(['auth', 'role:recruiter'])->group(function () {
 
 // Admin
 Route::middleware(['auth', 'role:admin'])->group(function () {
-    Route::get('/admin/dashboard', [DashboardController::class, 'adminIndex']);
+    Route::get('/admin', [DashboardController::class, 'adminIndex']);
     
     // User management
     Route::delete('/users/{id}', [DashboardController::class, 'deleteUser']);
     Route::post('/users/{id}/role', [DashboardController::class, 'updateUserRole']);
 });
+
+// Serve React app for ALL routes 
+// Route::get('/{any}', function () {
+//     return view('welcome');
+// })->where('any', '.*');
