@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import NavBar from "../components/NavBar";
 
 export default function DashboardAdmin() {
   document.title = "Admin Dashboard";
@@ -8,7 +9,9 @@ export default function DashboardAdmin() {
   return (
 
     <div className="main-cont">
-      
+      <NavBar title="Admin" />
+
+
     </div>
   );
 
