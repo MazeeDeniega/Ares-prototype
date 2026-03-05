@@ -26,41 +26,43 @@ export default function AdminDashboard() {
 
   return (
     <>
+    <NavBar name={user.name}/>
     <div className='main-cont'>
-      <NavBar name={user.name}/>
-      <h2>Admin Dashboard from react</h2>
-
-      <hr />
       {flash.success && <p style={{ color: 'green' }}>{flash.success}</p>}
       {flash.error && <p style={{ color: 'red' }}>{flash.error}</p>}
 
-      <h3>All Users</h3>
-      <table border="1" cellPadding="5">
-        <thead>
-            <tr><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr>
-        </thead>
-        <tbody>
-          {users.map(u => (
-            <tr key={u.id}>
-              <td>{u.id}</td>
-              <td>{u.name}</td>
-              <td>{u.email}</td>
-              <td>
-                <select value={u.role} onChange={e => updateRole(u.id, e.target.value)}>
-                  <option value="applicant">Applicant</option>
-                  <option value="recruiter">Recruiter</option>
-                  <option value="admin">Admin</option>
-                </select>
-              </td>
-              <td>
-                {u.role !== 'admin' && (
-                  <button onClick={() => deleteUser(u.id)}>Delete</button>
-                )}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="heading-cont">
+        <h3>All Users</h3>
+      </div>
+      
+      <div className="table-cont">
+        <table className='table-main'>
+          <thead>
+              <tr className='table-heading'><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr>
+          </thead>
+          <tbody>
+            {users.map(u => (
+              <tr className='table-body' key={u.id}>
+                <td className='id'>{u.id}</td>
+                <td>{u.name}</td>
+                <td>{u.email}</td>
+                <td className='role-selector'>
+                  <select value={u.role} onChange={e => updateRole(u.id, e.target.value)}>
+                    <option value="applicant">Applicant</option>
+                    <option value="recruiter">Recruiter</option>
+                    <option value="admin">Admin</option>
+                  </select>
+                </td>
+                <td className='delete-btn'>
+                  {u.role !== 'admin' && (
+                    <button onClick={() => deleteUser(u.id)}>Delete</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
     </>
   );

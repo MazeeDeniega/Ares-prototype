@@ -14,21 +14,21 @@ export default function NavBar(props) {
 
   return (
     <>
-      <nav className='navbar'>
-        <div className="nav-left">
-          ARES
-        </div>
+    <nav className='navbar'>
+      <div className="nav-left">
+        ARES
+      </div>
 
-        <div className="nav-center">
-          Welcome, {props.name}
-        </div>
+      <div className="nav-center">
+        Welcome, {props.name}
+      </div>
 
-        <div className="nav-right">
-          <button className='logout-btn' onClick={handleLogout}>
-            Log out
-          </button>
-        </div>
-      </nav>
+      <div className="nav-right">
+        <button className='logout-btn' onClick={handleLogout}>
+          Log out
+        </button>
+      </div>
+    </nav>
     </>
   )
 }
