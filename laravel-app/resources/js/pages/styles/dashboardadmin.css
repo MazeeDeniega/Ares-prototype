@@ -19,17 +19,9 @@ th {
   color: white;
 }
 
-td {
-  /* padding: .5rem .3rem; */
-}
-
 .table-main {
   border-collapse: collapse;
   width: 100%;
-}
-
-.table-body {
-  /* margin: 1rem; */
 }
 
 /* Center align Id, roles and button */
