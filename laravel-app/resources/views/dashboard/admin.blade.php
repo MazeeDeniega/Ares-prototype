@@ -1,5 +1,32 @@
 <!DOCTYPE html>
 <html>
+<head>
+    <title>Admin Dashboard</title>
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx'])
+</head>
+<body>
+    <script>
+        window.__LARAVEL__ = {
+            user: {
+                name: "{{ Auth::user()->name }}",
+                role: "{{ Auth::user()->role }}"
+            },
+            users: @json($users),
+            csrf: "{{ csrf_token() }}",
+            flash: {
+                success: "{{ session('success') }}",
+                error: "{{ session('error') }}"
+            }
+        };
+    </script>
+
+    <div id="app"></div>
+</body>
+</html>
+
+{{-- <!DOCTYPE html>
+<html>
 <head><title>Admin Dashboard</title></head>
 <body style="padding:20px">
     <h2>Admin Dashboard</h2>
@@ -45,4 +72,4 @@
         @endforeach
     </table>
 </body>
-</html>
+</html> --}}

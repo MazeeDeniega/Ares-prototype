@@ -11,7 +11,7 @@ export default function NavBar(props) {
         </div>
 
         <div className="nav-center">
-          {props.title} Dashboard
+          Welcome, {props.name}
         </div>
 
         <div className="nav-right">
