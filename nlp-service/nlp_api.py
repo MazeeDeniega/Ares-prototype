@@ -127,7 +127,7 @@ def classify_layout(text_raw):
         conciseness_score += 0.3
     conciseness_score = round(min(conciseness_score, 1), 3)
 
-    # 4. ORGANIZATION AND STRUCTURE
+    #  ORGANIZATION AND STRUCTURE
     org_score = 0
     sections = ['experience', 'education', 'skills', 'projects', 'summary']
     section_hits = sum([1 for s in sections if s in text])

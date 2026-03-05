@@ -21,6 +21,8 @@
             <th>Candidate</th>
             <th>Contact</th>
             <th>Score</th>
+            <th>TF-IDF</th>
+            <th>Semantic</th>
             <th>Details</th>
             <th>Documents</th>
         </tr>
@@ -37,6 +39,9 @@
                 {{ $r['city'] ?? '' }}, {{ $r['province'] ?? '' }}
             </td>
             <td class="score">{{ $r['score'] }}%</td>
+            <td>{{ $r['tfidf_similarity'] ?? '' }}%</td>
+            <td>{{ $r['semantic_similarity'] ?? '' }}%</td>
+
             <td>
                 <strong>Skills:</strong> {{ implode(', ', $r['skills']) }}<br>
                 <strong>Experience:</strong> {{ $r['experience'] }} yrs<br>

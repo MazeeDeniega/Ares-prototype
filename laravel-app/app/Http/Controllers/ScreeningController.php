@@ -99,7 +99,9 @@ class ScreeningController extends Controller
                 //     'nlp_response' => $data,
                 //     'layout_from_api' => $data['layout'] ?? 'NO LAYOUT DATA',
                 // ]);
-
+                
+                $tfidfScore = $data['tfidf_similarity'] ?? 0; 
+                $semanticScore = $data['semantic_similarity'] ?? 0;
                 $skillScore = $data['combined_similarity'] ?? 0; 
                 $yearsExp = $data['years_experience'] ?? 0;
                 $eduScore = $data['education_score'] ?? 0;
@@ -143,10 +145,10 @@ class ScreeningController extends Controller
                     $layoutScore = $layoutScore / $selectedCount;
                 }
 
-                // Get weights
+                // Get weights with fallback to defaults
                 $keywordWeight = $pref->keyword_weight ?? 40;
                 $semanticWeight = $pref->semantic_weight ?? 60;
-                $skillWeight = $pref->skills_weight ?? 35;
+                $skillWeight = $pref->skills_weight ?? 40;
                 $expWeight = $pref->experience_weight ?? 20;
                 $eduWeight = $pref->education_weight ?? 25;
                 $certWeight = $pref->cert_weight ?? 10;
@@ -186,6 +188,8 @@ class ScreeningController extends Controller
                     'tor_path' => $application->tor_path,
                     'cert_path' => $application->cert_path,
                     // Layout scores
+                    'tfidf_similarity' => round($tfidfScore * 100, 1),
+                    'semantic_similarity' => round($semanticScore * 100, 1),
                     'layout_score' => round($layoutScore * 100, 1),
                     'layout_formatting' => round($formattingScore * 100, 1),
                     'layout_language' => round($languageScore * 100, 1),

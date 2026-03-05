@@ -18,7 +18,12 @@
     <hr>
     <h3>Your Jobs (Click to Screen Applicants)</h3>
     <table border="1" cellpadding="5">
-        <tr><th>Job Title</th><th>Description</th><th>Applicants</th><th>Action</th></tr>
+        <tr>
+            <th>Job Title</th>
+            <th>Description</th>
+            <th>Applicants</th>
+            <th>Action</th>
+        </tr>
         @foreach($jobs as $job)
         <tr style="cursor:pointer; background-color:#f9f9f9;" onclick="window.location='/screening/{{ $job->id }}'">
             <td>{{ $job->title }}</td>
