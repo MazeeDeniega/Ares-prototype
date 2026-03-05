@@ -2,6 +2,15 @@ import React from 'react';
 import './styles/navbar.css';
 
 export default function NavBar(props) {
+  const { user, csrf } = window.__LARAVEL__;
+
+  const handleLogout = async () => {
+    await fetch('/logout', {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': csrf}
+    });
+    window.location.href = 'login';
+  };
 
   return (
     <>
@@ -15,11 +24,10 @@ export default function NavBar(props) {
         </div>
 
         <div className="nav-right">
-          <button className='logout-btn'>
+          <button className='logout-btn' onClick={handleLogout}>
             Log out
           </button>
         </div>
-
       </nav>
     </>
   )

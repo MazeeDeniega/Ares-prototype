@@ -30,11 +30,6 @@ export default function AdminDashboard() {
       <NavBar name={user.name}/>
       <h2>Admin Dashboard from react</h2>
 
-      <form action="/logout" method="POST" style={{ display: 'inline' }}>
-        <input type="hidden" name="_token" value={csrf} />
-        <button type="submit">Logout</button>
-      </form>
-
       <hr />
       {flash.success && <p style={{ color: 'green' }}>{flash.success}</p>}
       {flash.error && <p style={{ color: 'red' }}>{flash.error}</p>}
