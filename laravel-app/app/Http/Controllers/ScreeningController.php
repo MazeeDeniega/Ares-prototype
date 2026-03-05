@@ -7,8 +7,8 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Http;
 use App\Models\Job;
 use App\Models\Application;
+use App\Models\JobPreference;
 use Smalot\PdfParser\Parser;
-use app\Models\JobPreference;
 
 class ScreeningController extends Controller
 {
@@ -35,9 +35,6 @@ class ScreeningController extends Controller
         $applications = Application::where('job_id', $jobId)->get();
 
         foreach ($applications as $application) {
-
-            // dd($application->toArray());
-
             $feedback = [];
             $resumeText = '';
 
@@ -82,8 +79,6 @@ class ScreeningController extends Controller
                     'job' => $job->description
                 ]);
 
-                // dd($response->json());
-
                 if (!$response->ok()) {
                     $results[] = [
                         'application_id' => $application->id,
@@ -100,22 +95,70 @@ class ScreeningController extends Controller
 
                 $data = $response->json();
 
+                // dd([
+                //     'nlp_response' => $data,
+                //     'layout_from_api' => $data['layout'] ?? 'NO LAYOUT DATA',
+                // ]);
+
                 $skillScore = $data['combined_similarity'] ?? 0; 
                 $yearsExp = $data['years_experience'] ?? 0;
                 $eduScore = $data['education_score'] ?? 0;
                 $certScore = $data['certification_score'] ?? 0;
                 $skills = $data['matched_skills'] ?? [];
 
-                // Get user preferences
+                // Get layout scores from NLP API
+                $layout = $data['layout'] ?? [];
+                $formattingScore = $layout['formatting_score'] ?? 0;
+                $languageScore = $layout['language_score'] ?? 0;
+                $concisenessScore = $layout['conciseness_score'] ?? 0;
+                $organizationScore = $layout['organization_score'] ?? 0;
+
+                // Get job-specific preferences or fallback to user defaults
                 $jobPref = JobPreference::where('job_id', $jobId)->first();
-                $pref = Auth::user()->preference;
+                $pref = $jobPref ?? Auth::user()->preference;
+
+                // Calculate layout score based on selected categories (max 2)
+                $layoutScore = 0;
+                $selectedCount = 0;
                 
-                // Calculate score with preferences (scale to 0-100)
+                if ($pref->pref_formatting) {
+                    $layoutScore += $formattingScore;
+                    $selectedCount++;
+                }
+                if ($pref->pref_language) {
+                    $layoutScore += $languageScore;
+                    $selectedCount++;
+                }
+                if ($pref->pref_conciseness) {
+                    $layoutScore += $concisenessScore;
+                    $selectedCount++;
+                }
+                if ($pref->pref_organization) {
+                    $layoutScore += $organizationScore;
+                    $selectedCount++;
+                }
+
+                // Average if multiple categories selected
+                if ($selectedCount > 0) {
+                    $layoutScore = $layoutScore / $selectedCount;
+                }
+
+                // Get weights
+                $keywordWeight = $pref->keyword_weight ?? 40;
+                $semanticWeight = $pref->semantic_weight ?? 60;
+                $skillWeight = $pref->skills_weight ?? 35;
+                $expWeight = $pref->experience_weight ?? 20;
+                $eduWeight = $pref->education_weight ?? 25;
+                $certWeight = $pref->cert_weight ?? 10;
+                $layoutWeight = $pref->layout_weight ?? 0;
+
+                // Calculate final score with layout
                 $finalScore = 
-                    ($skillScore * 100 * ($pref->skills_weight ?? 35) / 100) + 
-                    (min($yearsExp, 5) / 5 * 100 * ($pref->experience_weight ?? 20) / 100) + 
-                    ($eduScore * 100 * ($pref->education_weight ?? 25) / 100) + 
-                    ($certScore * 100 * ($pref->cert_weight ?? 10) / 100);
+                    ($skillScore * 100 * $skillWeight / 100) + 
+                    (min($yearsExp, 5) / 5 * 100 * $expWeight / 100) + 
+                    ($eduScore * 100 * $eduWeight / 100) + 
+                    ($certScore * 100 * $certWeight / 100) +
+                    ($layoutScore * 100 * $layoutWeight / 100);
 
                 // Add feedback
                 if ($skillScore < 0.5) $feedback[] = "Low job similarity";
@@ -142,6 +185,12 @@ class ScreeningController extends Controller
                     'resume_path' => $application->resume_path,
                     'tor_path' => $application->tor_path,
                     'cert_path' => $application->cert_path,
+                    // Layout scores
+                    'layout_score' => round($layoutScore * 100, 1),
+                    'layout_formatting' => round($formattingScore * 100, 1),
+                    'layout_language' => round($languageScore * 100, 1),
+                    'layout_conciseness' => round($concisenessScore * 100, 1),
+                    'layout_organization' => round($organizationScore * 100, 1),
                 ];
             } catch (\Exception $e) {
                 $results[] = [
@@ -162,13 +211,62 @@ class ScreeningController extends Controller
                     'resume_path' => $application->resume_path,
                     'tor_path' => $application->tor_path ?? null,
                     'cert_path' => $application->cert_path ?? null,
+                    'layout_score' => 0,
+                    'layout_formatting' => 0,
+                    'layout_language' => 0,
+                    'layout_conciseness' => 0,
+                    'layout_organization' => 0,
                 ];
-
             }
         }
 
         // Sort by score descending
         usort($results, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        // DEBUG: Show what's happening
+        // dd([
+        //     'job_id' => $jobId,
+        //     'job_pref' => $jobPref ? [
+        //         'keyword_weight' => $jobPref->keyword_weight,
+        //         'semantic_weight' => $jobPref->semantic_weight,
+        //         'skills_weight' => $jobPref->skills_weight,
+        //         'experience_weight' => $jobPref->experience_weight,
+        //         'education_weight' => $jobPref->education_weight,
+        //         'cert_weight' => $jobPref->cert_weight,
+        //         'layout_weight' => $jobPref->layout_weight,
+        //         'pref_formatting' => $jobPref->pref_formatting,
+        //         'pref_language' => $jobPref->pref_language,
+        //         'pref_conciseness' => $jobPref->pref_conciseness,
+        //         'pref_organization' => $jobPref->pref_organization,
+        //     ] : 'NO JOB PREFERENCE FOUND',
+        //     'user_pref' => Auth::user()->preference ? [
+        //         'keyword_weight' => Auth::user()->preference->keyword_weight,
+        //         'semantic_weight' => Auth::user()->preference->semantic_weight,
+        //         'skills_weight' => Auth::user()->preference->skills_weight,
+        //         'experience_weight' => Auth::user()->preference->experience_weight,
+        //         'education_weight' => Auth::user()->preference->education_weight,
+        //         'cert_weight' => Auth::user()->preference->cert_weight,
+        //         'layout_weight' => Auth::user()->preference->layout_weight,
+        //         'pref_formatting' => Auth::user()->preference->pref_formatting,
+        //         'pref_language' => Auth::user()->preference->pref_language,
+        //         'pref_conciseness' => Auth::user()->preference->pref_conciseness,
+        //         'pref_organization' => Auth::user()->preference->pref_organization,
+        //     ] : 'NO USER PREFERENCE FOUND',
+        //     'pref_used' => $pref ? [
+        //         'keyword_weight' => $pref->keyword_weight,
+        //         'semantic_weight' => $pref->semantic_weight,
+        //         'skills_weight' => $pref->skills_weight,
+        //         'experience_weight' => $pref->experience_weight,
+        //         'education_weight' => $pref->education_weight,
+        //         'cert_weight' => $pref->cert_weight,
+        //         'layout_weight' => $pref->layout_weight,
+        //         'pref_formatting' => $pref->pref_formatting,
+        //         'pref_language' => $pref->pref_language,
+        //         'pref_conciseness' => $pref->pref_conciseness,
+        //         'pref_organization' => $pref->pref_organization,
+        //     ] : 'NO PREFERENCE FOUND',
+        //     'results_sample' => array_slice($results, 0, 2), // Show first 2 results
+        // ]);
 
         return view('screening.results', compact('results', 'job'));
     }
