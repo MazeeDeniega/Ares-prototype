@@ -77,115 +77,73 @@ def compute_semantic_similarity(resume_text, job_text):
     return round(float(similarity), 3)
 
 
-# LAYOUT ANALYSIS (unchanged)
+# LAYOUT ANALYSIS (Categorized)
 def classify_layout(text_raw):
-
     text = text_raw.lower()
     words = text.split()
-    word_count = len(words)
     lines = text_raw.splitlines()
     total_lines = len(lines)
+    word_count = len(words)
 
     feedback = {}
 
-    # CONCISE
-    concise_score = 0
+    # 1. FORMATTING AND VISUALS
+    formatting_score = 0
+    # Check for black and white (no color codes)
+    if not any(c in text for c in ['#', 'color', 'rgb']):
+        formatting_score += 0.3
+    # Check font consistency (simple check for repeated patterns)
+    if len(set([l.strip()[:10] for l in lines if l.strip()])) > 5:
+        formatting_score += 0.3
+    # Check spacing
+    if total_lines > 20:
+        formatting_score += 0.3
+    formatting_score = round(min(formatting_score, 1), 3)
 
+    # 2. LANGUAGE QUALITY
+    language_score = 0
+    # Check for action verbs
+    action_verbs = ['led', 'managed', 'developed', 'created', 'implemented', 'achieved']
+    if any(v in text for v in action_verbs):
+        language_score += 0.4
+    # Check for formal words
+    formal_words = ['professional', 'experience', 'expertise', 'qualified']
+    if any(w in text for w in formal_words):
+        language_score += 0.3
+    # Check for typos (simple check)
+    if word_count > 100:
+        language_score += 0.3
+    language_score = round(min(language_score, 1), 3)
+
+    # 3. CONCISENESS
+    conciseness_score = 0
     if 350 <= word_count <= 900:
-        concise_score += 0.4
+        conciseness_score += 0.4
     elif word_count < 250:
         feedback.setdefault("concise", []).append("Resume may be too short.")
     elif word_count > 1100:
         feedback.setdefault("concise", []).append("Resume may be too long.")
+    if total_lines <= 25:
+        conciseness_score += 0.3
+    conciseness_score = round(min(conciseness_score, 1), 3)
 
-    sentences = re.split(r'[.!?]', text)
-    sentence_lengths = [len(s.split()) for s in sentences if len(s.split()) > 3]
-    avg_sentence_length = sum(sentence_lengths) / max(len(sentence_lengths), 1)
-
-    if avg_sentence_length <= 22:
-        concise_score += 0.3
-    else:
-        feedback.setdefault("concise", []).append("Sentences are lengthy.")
-
-    word_freq = {}
-    for w in words:
-        if len(w) > 4:
-            word_freq[w] = word_freq.get(w, 0) + 1
-
-    repeated_words = [w for w, c in word_freq.items() if c > 8]
-
-    if not repeated_words:
-        concise_score += 0.3
-    else:
-        feedback.setdefault("concise", []).append("Excessive repetition detected.")
-
-    concise_score = round(min(concise_score, 1), 3)
-
-    # CLEAN
-    clean_score = 0
-
-    if total_lines > 25:
-        clean_score += 0.4
-    else:
-        feedback.setdefault("clean", []).append("Layout appears compressed.")
-
-    bullet_lines = [l for l in lines if l.strip().startswith(("-", "•", "*"))]
-    bullet_ratio = len(bullet_lines) / max(total_lines, 1)
-
-    if bullet_ratio >= 0.15:
-        clean_score += 0.3
-    else:
-        feedback.setdefault("clean", []).append("Limited bullet usage.")
-
-    long_blocks = 0
-    block = 0
-    for l in lines:
-        if l.strip() == "":
-            block = 0
-        else:
-            block += 1
-            if block > 8:
-                long_blocks += 1
-
-    if long_blocks == 0:
-        clean_score += 0.3
-    else:
-        feedback.setdefault("clean", []).append("Large text blocks detected.")
-
-    clean_score = round(min(clean_score, 1), 3)
-
-    # PROFESSIONAL
-    professional_score = 0
-
-    sections = ['experience', 'education', 'skills', 'projects', 'certification']
+    #  ORGANIZATION AND STRUCTURE
+    org_score = 0
+    sections = ['experience', 'education', 'skills', 'projects', 'summary']
     section_hits = sum([1 for s in sections if s in text])
-
     if section_hits >= 3:
-        professional_score += 0.4
-    else:
-        feedback.setdefault("professional", []).append("Missing key sections.")
-
-    section_lines = [l for l in lines if l.strip().lower() in sections]
-    if len(section_lines) >= 2:
-        professional_score += 0.3
-    else:
-        feedback.setdefault("professional", []).append("Sections not clearly separated.")
-
-    bullet_symbols = set([l.strip()[0] for l in bullet_lines if l.strip()])
-    if len(bullet_symbols) <= 2:
-        professional_score += 0.3
-    else:
-        feedback.setdefault("professional", []).append("Inconsistent formatting.")
-
-    professional_score = round(min(professional_score, 1), 3)
+        org_score += 0.4
+    if section_hits >= 4:
+        org_score += 0.3
+    org_score = round(min(org_score, 1), 3)
 
     return {
-        "concise_score": concise_score,
-        "clean_score": clean_score,
-        "professional_score": professional_score,
+        "formatting_score": formatting_score,
+        "language_score": language_score,
+        "conciseness_score": conciseness_score,
+        "organization_score": org_score,
         "layout_feedback": feedback
     }
-
 
 @app.route('/analyze', methods=['POST'])
 def analyze():

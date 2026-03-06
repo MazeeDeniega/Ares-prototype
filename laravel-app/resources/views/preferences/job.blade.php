@@ -36,7 +36,22 @@
         
         <hr>
         
-        <h3>Layout Score (Optional)</h3>
+        <h3>Layout Categories (Select Max 2)</h3>
+        <label><input type="checkbox" name="pref_formatting" value="1" {{ $pref->pref_formatting ? 'checked' : '' }}> Formatting and Visuals</label><br>
+        <small>Space between sections, B&W, Font consistency, Indents</small><br><br>
+        
+        <label><input type="checkbox" name="pref_language" value="1" {{ $pref->pref_language ? 'checked' : '' }}> Language Quality</label><br>
+        <small>No typos, Coherent, Formal words, Action verbs</small><br><br>
+        
+        <label><input type="checkbox" name="pref_conciseness" value="1" {{ $pref->pref_conciseness ? 'checked' : '' }}> Conciseness</label><br>
+        <small>Low word count, Pages amount, Relevant info</small><br><br>
+        
+        <label><input type="checkbox" name="pref_organization" value="1" {{ $pref->pref_organization ? 'checked' : '' }}> Organization and Structure</label><br>
+        <small>Font hierarchy, Margins, Sectioned info, Logical progression</small><br><br>
+        
+        <hr>
+        
+        <h3>Layout Score Weight (Optional)</h3>
         <label>Layout Weight (%):</label><br>
         <input type="number" name="layout_weight" value="{{ $pref->layout_weight }}" min="0" max="100" placeholder="0 = disabled"><br><br>
         

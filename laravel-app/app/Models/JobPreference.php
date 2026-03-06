@@ -16,6 +16,10 @@ class JobPreference extends Model
         'education_weight',
         'cert_weight',
         'layout_weight',
+        'pref_formatting',
+        'pref_language',
+        'pref_conciseness',
+        'pref_organization',
     ];
     
     public function job(): BelongsTo 

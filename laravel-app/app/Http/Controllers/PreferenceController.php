@@ -24,6 +24,10 @@ class PreferenceController extends Controller
                 'keyword_weight' => 40,
                 'semantic_weight' => 60,
                 'layout_weight' => 0,
+                'pref_formatting' => false,
+                'pref_language' => false,
+                'pref_conciseness' => false,
+                'pref_organization' => false,
             ]);
         }
         
@@ -38,10 +42,34 @@ class PreferenceController extends Controller
             'keyword_weight' => 'required|integer|min:0|max:100',
             'semantic_weight' => 'required|integer|min:0|max:100',
             'layout_weight' => 'required|integer|min:0|max:100',
+            'pref_formatting' => 'nullable|boolean',
+            'pref_language' => 'nullable|boolean',
+            'pref_conciseness' => 'nullable|boolean',
+            'pref_organization' => 'nullable|boolean',
         ]);
 
         if ($totalScoring != 100) {
             return back()->withErrors(['Keyword + Semantic must equal 100%']);
+        }
+
+        // Convert checkbox values to boolean
+        $request->merge([
+            'pref_formatting' => (bool) $request->pref_formatting,
+            'pref_language' => (bool) $request->pref_language,
+            'pref_conciseness' => (bool) $request->pref_conciseness,
+            'pref_organization' => (bool) $request->pref_organization,
+        ]);
+
+        // Validate max 2 layout categories
+        $selected = collect([
+            $request->pref_formatting,
+            $request->pref_language,
+            $request->pref_conciseness,
+            $request->pref_organization,
+        ])->filter()->count();
+
+        if ($selected > 2) {
+            return back()->withErrors(['You can select a maximum of 2 layout categories.']);
         }
 
         $pref = Auth::user()->preference;
@@ -54,6 +82,7 @@ class PreferenceController extends Controller
         return redirect('/dashboard')->with('success', 'Preferences saved!');
     }
 
+    // Job-specific preferences
     public function editJobPreference($jobId)
     {
         $job = Job::findOrFail($jobId);
@@ -72,6 +101,10 @@ class PreferenceController extends Controller
                 'education_weight' => $userPref->education_weight ?? 25,
                 'cert_weight' => $userPref->cert_weight ?? 10,
                 'layout_weight' => $userPref->layout_weight ?? 0,
+                'pref_formatting' => false,
+                'pref_language' => false,
+                'pref_conciseness' => false,
+                'pref_organization' => false,
             ]);
         }
         
@@ -89,10 +122,34 @@ class PreferenceController extends Controller
             'keyword_weight' => 'required|integer|min:0|max:100',
             'semantic_weight' => 'required|integer|min:0|max:100',
             'layout_weight' => 'required|integer|min:0|max:100',
+            'pref_formatting' => 'nullable|boolean',
+            'pref_language' => 'nullable|boolean',
+            'pref_conciseness' => 'nullable|boolean',
+            'pref_organization' => 'nullable|boolean',
         ]);
 
         if ($totalScoring != 100) {
             return back()->withErrors(['Keyword + Semantic must equal 100%']);
+        }
+
+        // Convert checkbox values to boolean
+        $request->merge([
+            'pref_formatting' => (bool) $request->pref_formatting,
+            'pref_language' => (bool) $request->pref_language,
+            'pref_conciseness' => (bool) $request->pref_conciseness,
+            'pref_organization' => (bool) $request->pref_organization,
+        ]);
+
+        // Validate max 2 layout categories
+        $selected = collect([
+            $request->pref_formatting,
+            $request->pref_language,
+            $request->pref_conciseness,
+            $request->pref_organization,
+        ])->filter()->count();
+
+        if ($selected > 2) {
+            return back()->withErrors(['You can select a maximum of 2 layout categories.']);
         }
 
         JobPreference::updateOrCreate(
@@ -100,6 +157,12 @@ class PreferenceController extends Controller
             $request->all()
         );
         
+        //debugging
+        //  dd([
+        // 'saved_data' => $request->all(),
+        // 'pref_after_save' => JobPreference::where('job_id', $jobId)->first(),  
+        // ]);
+
         return redirect('/dashboard')->with('success', 'Job preferences saved!');
     }
 }
