@@ -1,45 +1,66 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
+import './styles/login.css';
 
 export default function Login() {
   document.title = "Login";
-  const { csrf, loginRoute, errors: serverError } = window.__LARAVEL__;
-  const [error, setError] = useState(serverError || '');
+  const csrf = window.__LARAVEL__?.csrf;
+  const [error, setError] = useState(window.__LARAVEL__?.flash?.error || '');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
-    const data = new FormData(form);
 
-    const res = await fetch(loginRoute, {
+    const response = await fetch('/login', {
       method: 'POST',
-      headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-      body: data
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrf
+      },
+      body: JSON.stringify({
+        email: form.email.value,
+        password: form.password.value
+      })
     });
 
-    if (res.ok) {
-      const json = await res.json();
-      window.location.href = json.redirect ?? '/admin';
+    if (response.ok) {
+      window.location.href = '/';
     } else {
-      const json = await res.json();
-      setError(json.message || 'Invalid credentials.');
+      const data = await response.json();
+      setError(data.message || 'Invalid credentials.');
     }
   };
 
   return (
     <>
-    <div style={{ padding: 20 }}>
-      <h2>Log in page from react</h2>
+    <div className="login-main-cont">
+      <div className="login-inner-cont">
+        <h2>Welcome to ARES!</h2>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+        {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      <form onSubmit={handleSubmit}>
-        <input type="text" name="email" placeholder="Email" required /><br /><br />
-        <input type="password" name="password" placeholder="Password" required /><br /><br />
-        <button type="submit">Login</button>
-      </form>
+        <div className="login-form">
+          <form onSubmit={handleSubmit}>
 
-      <p>Don't have an account? <a href="/register">Register</a></p>
-      <p><a href="/jobs">View Jobs (Public)</a></p>
+            <div className="input-section">
+              <label>Email: </label>
+              <input type="text" name="email" placeholder="name@example.com" required />
+            </div>
+
+            <div className="input-section">
+              <label>Password: </label>
+              <input type="password" name="password" placeholder="" required />
+            </div>
+
+            <button className='login-btn' type="submit">Login</button>
+          </form>
+        </div>
+        
+        <div className="lower-section">
+          <p>Don't have an account? <Link to="/register">Register</Link></p>
+          <p><Link to="/jobs">Enter as a guest</Link></p>
+        </div>
+      </div>
     </div>
     </>
   );

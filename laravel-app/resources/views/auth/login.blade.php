@@ -1,4 +1,4 @@
-{{-- <!DOCTYPE html>
+<!DOCTYPE html>
 <html>
   <head>
     @viteReactRefresh
@@ -14,9 +14,9 @@
     </script>
     <div id="app"></div>
   </body>
-</html> --}}
+</html>
 
-<!DOCTYPE html>
+{{-- <!DOCTYPE html>
 <html>
 <head><title>Login</title></head>
 <body style="padding:20px">
@@ -33,4 +33,4 @@
     <p>Don't have an account? <a href="/register">Register</a></p>
     <p><a href="/jobs">View Jobs (Public)</a></p>
 </body>
-</html>
+</html> --}}
