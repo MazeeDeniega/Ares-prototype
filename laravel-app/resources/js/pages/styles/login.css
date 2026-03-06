@@ -1,3 +1,57 @@
 html {
   background-color: #4BA3C3;
+  height: 100vh;
 } 
+
+.login-main-cont {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-direction: column;
+}
+
+.login-inner-cont {
+  background-color: white;
+  padding: 24px;
+  max-width: 400px;
+  width: 100%;
+  text-align: center;
+  border-radius: 12px;
+}
+
+.email-section, .password-section {
+  text-align: left;
+  font-weight: bold;
+  margin-bottom: 10px;
+  display: flex;
+  flex-direction: column;
+}
+
+.login-form input {
+  margin-top: 5px;
+  padding: 5px;
+  border: none;
+  border-bottom: 2px solid black;
+}
+
+.login-form input:focus {
+  outline: none;
+}
+
+.login-btn {
+  background-color: #4BA3C3;
+  color: white;
+  font-size: 18px;
+  border: none;
+  border-radius: 8px;
+  padding: 1rem 0;
+  margin: 10px 0;
+  width: 100%;
+  cursor: pointer;
+}
+
+.lower-links {
+  line-height: .5;
+  font-size: smaller;
+}

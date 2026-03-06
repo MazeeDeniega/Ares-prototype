@@ -34,20 +34,33 @@ export default function Login() {
   return (
     <>
     <div className="login-main-cont">
-      <h2>Log in page from react</h2>
+      <div className="login-inner-cont">
+        <h2>Welcome to ARES!</h2>
 
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+        {error && <p style={{ color: 'red' }}>{error}</p>}
 
-      <form onSubmit={handleSubmit}>
-        <label>Email: </label>
-        <input type="text" name="email" placeholder="Email" required /><br /><br />
-        <label>Password: </label>
-        <input type="password" name="password" placeholder="Password" required /><br /><br />
-        <button type="submit">Login</button>
-      </form>
+        <div className="login-form">
+          <form onSubmit={handleSubmit}>
 
-      <p>Don't have an account? <Link to="/register">Register</Link></p>
-      <p><Link to="/jobs">Enter as guest</Link></p>
+            <div className="email-section">
+              <label>Email: </label>
+              <input type="text" name="email" placeholder="name@example.com" required />
+            </div>
+
+            <div className="password-section">
+              <label>Password: </label>
+              <input type="password" name="password" placeholder="" required />
+            </div>
+
+            <button className='login-btn' type="submit">Login</button>
+          </form>
+        </div>
+        
+        <div className="lower-links">
+          <p>Don't have an account? <Link to="/register">Register</Link></p>
+          <p><Link to="/jobs">Enter as a guest</Link></p>
+        </div>
+      </div>
     </div>
     </>
   );
