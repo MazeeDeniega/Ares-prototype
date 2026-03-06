@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import './styles/login.css';
 
 export default function Login() {
@@ -32,19 +33,21 @@ export default function Login() {
 
   return (
     <>
-    <div style={{ padding: 20 }}>
+    <div className="login-main-cont">
       <h2>Log in page from react</h2>
 
       {error && <p style={{ color: 'red' }}>{error}</p>}
 
       <form onSubmit={handleSubmit}>
+        <label>Email: </label>
         <input type="text" name="email" placeholder="Email" required /><br /><br />
+        <label>Password: </label>
         <input type="password" name="password" placeholder="Password" required /><br /><br />
         <button type="submit">Login</button>
       </form>
 
-      <p>Don't have an account? <a href="/register">Register</a></p>
-      <p><a href="/jobs">View Jobs (Public)</a></p>
+      <p>Don't have an account? <Link to="/register">Register</Link></p>
+      <p><Link to="/jobs">Enter as guest</Link></p>
     </div>
     </>
   );
