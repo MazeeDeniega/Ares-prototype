@@ -1,8 +1,18 @@
 <!DOCTYPE html>
 <html>
-<head><title>Register</title></head>
+<head>    
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx'])
+</head>
 <body style="padding:20px">
-    <h2>Register</h2>
+    <script>
+    window.__LARAVEL__ = {
+        csrf: "{{ csrf_token() }}"
+    };
+    </script>
+    <div id="app"></div>
+
+    {{-- <h2>Register</h2>
     <form method="POST" action="/register">
         @csrf
         <input type="text" name="name" placeholder="Name" required><br><br>
@@ -17,6 +27,6 @@
         
         <button type="submit">Register</button>
     </form>
-    <p><a href="/login">Back to Login</a></p>
+    <p><a href="/login">Back to Login</a></p> --}}
 </body>
 </html>

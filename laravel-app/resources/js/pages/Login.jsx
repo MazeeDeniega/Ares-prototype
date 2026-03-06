@@ -42,12 +42,12 @@ export default function Login() {
         <div className="login-form">
           <form onSubmit={handleSubmit}>
 
-            <div className="email-section">
+            <div className="input-section">
               <label>Email: </label>
               <input type="text" name="email" placeholder="name@example.com" required />
             </div>
 
-            <div className="password-section">
+            <div className="input-section">
               <label>Password: </label>
               <input type="password" name="password" placeholder="" required />
             </div>
@@ -56,7 +56,7 @@ export default function Login() {
           </form>
         </div>
         
-        <div className="lower-links">
+        <div className="lower-section">
           <p>Don't have an account? <Link to="/register">Register</Link></p>
           <p><Link to="/jobs">Enter as a guest</Link></p>
         </div>
