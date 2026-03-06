@@ -55,6 +55,6 @@
         
         <button type="submit">Save</button>
     </form>
-    <p><a href="/dashboard">Back</a></p>
+    <p><a href="/recruiter">Back</a></p>
 </body>
 </html>

@@ -100,7 +100,7 @@ class PreferenceController extends Controller
                 'experience_weight' => $userPref->experience_weight ?? 20,
                 'education_weight' => $userPref->education_weight ?? 25,
                 'cert_weight' => $userPref->cert_weight ?? 10,
-                'layout_weight' => $userPref->layout_weight ?? 0,
+                'layout_weight' => $userPref->layout_weight ?? 10,
                 'pref_formatting' => false,
                 'pref_language' => false,
                 'pref_conciseness' => false,
