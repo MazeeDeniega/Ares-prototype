@@ -32,6 +32,7 @@ export default function Register() {
         }
     };
 
+    // Css of this page is linked to login.css
   return (
     <>
     <div className="login-main-cont">
