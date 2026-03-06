@@ -1,27 +1,32 @@
 import { useState } from 'react';
+import './styles/login.css';
 
 export default function Login() {
   document.title = "Login";
-  const { csrf, loginRoute, errors: serverError } = window.__LARAVEL__;
-  const [error, setError] = useState(serverError || '');
+  const csrf = window.__LARAVEL__?.csrf;
+  const [error, setError] = useState(window.__LARAVEL__?.flash?.error || '');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     const form = e.target;
-    const data = new FormData(form);
 
-    const res = await fetch(loginRoute, {
+    const response = await fetch('/login', {
       method: 'POST',
-      headers: { 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-      body: data
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRF-TOKEN': csrf
+      },
+      body: JSON.stringify({
+        email: form.email.value,
+        password: form.password.value
+      })
     });
 
-    if (res.ok) {
-      const json = await res.json();
-      window.location.href = json.redirect ?? '/admin';
+    if (response.ok) {
+      window.location.href = '/';
     } else {
-      const json = await res.json();
-      setError(json.message || 'Invalid credentials.');
+      const data = await response.json();
+      setError(data.message || 'Invalid credentials.');
     }
   };
 
