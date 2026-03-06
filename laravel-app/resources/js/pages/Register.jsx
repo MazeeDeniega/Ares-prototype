@@ -46,16 +46,16 @@ export default function Register() {
 
             <div className="input-section">
               <label>Name: </label>
-              <input type="text" name="name" placeholder="Name" required />
+              <input type="text" name="name" placeholder="" required />
             </div>
             <div className="input-section">
               <label>Email: </label>
-              <input type="email" name="email" placeholder="Email" required />
+              <input type="email" name="email" placeholder="name@example.com" required />
             </div>
 
             <div className="input-section">
               <label>Password: </label>
-              <input type="password" name="password" placeholder="Password" required />
+              <input type="password" name="password" placeholder="" required />
             </div>
 
             <div className="input-section">
