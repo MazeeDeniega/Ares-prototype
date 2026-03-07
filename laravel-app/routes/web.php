@@ -19,19 +19,19 @@ Route::middleware('guest')->group(function () {
 
 Route::post('/logout', [AuthController::class, 'logout']);
 
-// Root - Check if logged in, otherwise go to login
+// Root redirect
 Route::get('/', function () {
     if (!Auth::check()) {
         return redirect('/login');
     }
-    
+
     $user = Auth::user();
-    
+
     return match($user->role) {
-        'admin' => redirect('/admin'),
+        'admin'     => redirect('/admin'),
         'recruiter' => redirect('/recruiter'),
         'applicant' => redirect('/jobs'),
-        default => redirect('/login'),
+        default     => redirect('/login'),
     };
 });
 
@@ -46,6 +46,11 @@ Route::middleware(['auth', 'role:applicant'])->group(function () {
     Route::get('/my-applications', [ApplicantController::class, 'myApplications']);
 });
 
+// File serving — auth only, constrained to known types
+Route::middleware('auth')
+    ->get('/files/{applicationId}/{type}', [ScreeningController::class, 'serveFile'])
+    ->where('type', 'resume|tor|cert');
+
 // Recruiter
 Route::middleware(['auth', 'role:recruiter'])->group(function () {
     Route::get('/recruiter', [DashboardController::class, 'index']);
@@ -53,7 +58,7 @@ Route::middleware(['auth', 'role:recruiter'])->group(function () {
     Route::delete('/jobs/{id}', [JobController::class, 'destroy']);
     Route::get('/preferences/edit', [PreferenceController::class, 'edit']);
     Route::post('/preferences', [PreferenceController::class, 'update']);
-    
+
     Route::get('/screening/{jobId}', [ScreeningController::class, 'showJobApplicants']);
     Route::post('/screening/{jobId}/evaluate', [ScreeningController::class, 'evaluateApplicants'])->name('screen.evaluate');
 
@@ -64,13 +69,7 @@ Route::middleware(['auth', 'role:recruiter'])->group(function () {
 // Admin
 Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::get('/admin', [DashboardController::class, 'adminIndex']);
-    
-    // User management
+
     Route::delete('/users/{id}', [DashboardController::class, 'deleteUser']);
     Route::post('/users/{id}/role', [DashboardController::class, 'updateUserRole']);
 });
-
-// Serve React app for ALL routes 
-// Route::get('/{any}', function () {
-//     return view('welcome');
-// })->where('any', '.*');

@@ -72,10 +72,11 @@ class PreferenceController extends Controller
         $pref->update($request->only([
             'keyword_weight', 'semantic_weight',
             'skills_weight', 'experience_weight', 'education_weight', 'cert_weight',
+            'layout_weight',
             'formatting_weight', 'language_weight', 'concise_weight', 'organization_weight',
         ]));
 
-        return redirect('/dashboard')->with('success', 'Default preferences saved!');
+        return redirect('/recruiter')->with('success', 'Default preferences saved!');
     }
 
     public function editJobPreference($jobId)
@@ -146,10 +147,11 @@ class PreferenceController extends Controller
             $request->only([
                 'keyword_weight', 'semantic_weight',
                 'skills_weight', 'experience_weight', 'education_weight', 'cert_weight',
+                'layout_weight',
                 'formatting_weight', 'language_weight', 'concise_weight', 'organization_weight',
             ])
         );
 
-        return redirect('/dashboard')->with('success', 'Job preferences saved!');
+        return redirect('/recruiter')->with('success', 'Job preferences saved!');
     }
 }

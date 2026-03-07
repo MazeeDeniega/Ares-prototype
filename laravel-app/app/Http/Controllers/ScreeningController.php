@@ -170,10 +170,19 @@ class ScreeningController extends Controller
 
                 if (file_exists($fullPath)) {
                     try {
-                        $parser     = new Parser();
-                        $pdf        = $parser->parseFile($fullPath);
-                        $resumeText = $pdf->getText();
+                        $parser    = new Parser();
+                        $pdf       = $parser->parseFile($fullPath);
+                        // getText() collapses all pages into one line, which breaks
+                        // the NLP layout scoring (blank ratio, heading detection, etc).
+                        // Join page texts with double newlines to preserve structure.
+                        $pages     = $pdf->getPages();
+                        $resumeText = trim(implode("\n\n", array_map(
+                            fn($p) => $p->getText(), $pages
+                        )));
                         $pageCount  = $this->extractPdfPageCount($fullPath);
+                        if (empty($resumeText)) {
+                            $feedback[] = 'PDF parsed but no text extracted — file may be image-based or corrupt';
+                        }
                     } catch (\Exception $e) {
                         $feedback[] = 'PDF Error: ' . $e->getMessage();
                     }
@@ -209,12 +218,15 @@ class ScreeningController extends Controller
                 ]);
 
                 if (!$response->ok()) {
-                    $result['feedback'] = ['NLP API error'];
+                    $result['feedback'] = ['NLP API error: HTTP ' . $response->status() . ' — ' . $response->body()];
                     $results[] = $result;
                     continue;
                 }
 
                 $data = $response->json();
+
+                // Uncomment to debug NLP response in browser:
+                // dd($data);
 
                 $yearsExp  = $data['years_experience']    ?? 0;
                 $eduScore  = $data['education_score']     ?? 0;
@@ -252,6 +264,9 @@ class ScreeningController extends Controller
                 $conciseScore      = $data['concise_score']      ?? 0;
                 $organizationScore = $data['organization_score'] ?? 0;
 
+                // Use the NLP pre-weighted presentation_score by default.
+                // Only re-compute if the recruiter has explicitly toggled specific
+                // categories on — toggling none means "use all" (the NLP default).
                 $anyToggleSet = $pref->pref_formatting || $pref->pref_language
                              || $pref->pref_conciseness || $pref->pref_organization;
 
@@ -264,11 +279,16 @@ class ScreeningController extends Controller
                     if ($pref->pref_organization){ $activeScore += $organizationScore * $pref->organization_weight; $activeWeight += $pref->organization_weight; }
                     $presentationRaw = $activeWeight > 0 ? $activeScore / $activeWeight : 0;
                 } else {
-                    // All categories active — use the pre-weighted score from NLP
+                    // No toggles set = all categories active, use NLP's pre-weighted score
                     $presentationRaw = $data['presentation_score'] ?? 0;
                 }
 
-                $presentationScore = round($presentationRaw * 100, 2);
+                // NLP returns 0–1, convert to 0–100
+                // Guard: if NLP returned already-scaled value (>1), don't double-multiply
+                $presentationScore = round(
+                    ($presentationRaw <= 1 ? $presentationRaw * 100 : $presentationRaw),
+                    2
+                );
 
                 // --------------------------------------------------------
                 // 5. FEEDBACK
@@ -292,7 +312,7 @@ class ScreeningController extends Controller
                 $results[] = $result;
 
             } catch (\Exception $e) {
-                $result['feedback'] = ['Error: ' . $e->getMessage()];
+                $result['feedback'] = ['NLP Error: ' . $e->getMessage() . ' — is the Flask service running on port 5000?'];
                 $results[] = $result;
             }
         }

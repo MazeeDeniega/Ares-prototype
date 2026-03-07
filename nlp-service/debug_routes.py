@@ -5,9 +5,9 @@ Flask Blueprint for the ARES NLP debug panel.
 Registered in nlp_api.py — not imported directly.
 
 Routes:
-  GET  /          → interactive debug UI (paste text)
-  POST /debug     → JSON endpoint used by the UI
-  GET  /debug     → PDF upload debug form
+  GET  /              → interactive debug UI (paste text)
+  POST /debug         → JSON endpoint used by the UI
+  GET  /debug         → PDF upload debug form
   POST /debug/analyse → PDF upload endpoint
 """
 
@@ -17,20 +17,20 @@ import tempfile
 
 from flask import Blueprint, jsonify, request
 
-# Core functions imported from the main module at registration time.
-# We use a lazy reference via the blueprint's app context to avoid
-# circular imports.
 debug_bp = Blueprint('debug', __name__)
 
 
 def _core():
-    """Return the nlp_api module so we can call its functions."""
+    import sys, os
+    here = os.path.dirname(os.path.abspath(__file__))
+    if here not in sys.path:
+        sys.path.insert(0, here)
     import nlp_api
     return nlp_api
 
 
 # ---------------------------------------------------------------------------
-# Helpers shared across debug routes
+# Shared constants
 # ---------------------------------------------------------------------------
 _BULLET_CHARS = ('•', '-', '*', '–', '·', '\uf0a7', '\uf0b7', '\uf0d8', '\uf0fc')
 
@@ -42,21 +42,29 @@ _ACTION_VERBS = [
     'trained', 'mentored', 'oversaw', 'directed', 'produced', 'increased',
 ]
 
+_INFORMAL_MARKERS = [
+    'i am', "i'm", "i've", "i'll", 'gonna', 'wanna', 'kinda',
+    'lol', 'btw', 'etc etc', 'stuff', 'things', 'lots of',
+]
+
 _HEADING_RE = re.compile(
     r'^(EDUCATION|EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
     r'|TRAINING|WORK HISTORY|EMPLOYMENT|PROFESSIONAL|TECHNICAL|RELEVANT'
-    r'|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)',
+    r'|INTERNSHIP|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)',
     re.IGNORECASE,
 )
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 def _extract_debug_meta(resume_raw: str, page_count) -> dict:
-    """Return the metadata dict shown in the debug panel."""
-    lines       = resume_raw.splitlines()
-    text        = resume_raw.lower()
+    lines        = resume_raw.splitlines()
+    text         = resume_raw.lower()
     bullet_lines = [l for l in lines if l.strip().startswith(_BULLET_CHARS)]
     blank_lines  = [l for l in lines if l.strip() == '']
     found_verbs  = [v for v in _ACTION_VERBS if v in text]
+
     heading_lines = [
         l for l in lines if l.strip() and (
             _HEADING_RE.match(l.strip()) or
@@ -64,19 +72,42 @@ def _extract_debug_meta(resume_raw: str, page_count) -> dict:
              and not re.search(r'[\d@]', l))
         )
     ]
+
+    header_text = ' '.join(lines[:15]).lower()
+    has_email   = bool(re.search(r'[\w.\-]+@[\w.\-]+\.\w+', header_text))
+    has_phone   = bool(re.search(r'[\d\s\-\+\(\)]{7,}', header_text))
+
+    years_found  = re.findall(r'\b(20\d{2}|19\d{2})\b', resume_raw)
+    years_int    = list(map(int, years_found)) if years_found else []
+
+    found_informal      = [m for m in _INFORMAL_MARKERS if m in text]
+    content_lines       = [l.strip() for l in lines if len(l.strip().split()) > 2]
+    long_lines_count    = sum(1 for l in content_lines if len(l.split()) > 35)
+    special_chars_count = len(re.findall(r'[█▓▒░▄▀■□◆◇★☆]', resume_raw))
+
     return {
-        'word_count':         len(text.split()),
-        'page_count':         page_count,
-        'blank_ratio':        round(len(blank_lines) / max(len(lines), 1), 3),
-        'bullet_line_count':  len(bullet_lines),
-        'heading_line_count': len(heading_lines),
-        'action_verbs_found': found_verbs,
+        'word_count':             len(text.split()),
+        'page_count':             page_count,
+        'blank_ratio':            round(len(blank_lines) / max(len(lines), 1), 3),
+        'bullet_line_count':      len(bullet_lines),
+        'heading_line_count':     len(heading_lines),
+        'action_verbs_found':     found_verbs,
+        'has_email':              has_email,
+        'has_phone':              has_phone,
+        'detected_sections':      [l.strip() for l in heading_lines],
+        'date_range': {
+            'earliest': min(years_int) if years_int else None,
+            'latest':   max(years_int) if years_int else None,
+            'all':      sorted(set(years_int)),
+        },
+        'informal_markers_found': found_informal,
+        'long_lines_count':       long_lines_count,
+        'special_chars_count':    special_chars_count,
     }
 
 
 def _score_resume(resume_raw: str, job_raw: str, page_count,
                   kw: int = 40, sem: int = 60) -> dict:
-    """Run full scoring and return a flat result dict."""
     m = _core()
 
     resume = m.normalize_text(resume_raw)
@@ -88,16 +119,19 @@ def _score_resume(resume_raw: str, job_raw: str, page_count,
     combined       = round(
         (tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3
     )
-    matched_skills = m.match_skills(resume, job)
 
-    years     = re.findall(r'(\d+)\s+years?', resume)
-    years_exp = max(map(int, years)) if years else 0
+    matched_skills       = m.match_skills(resume, job)
+    job_skills_extracted = m.extract_skills_from_job(job) if job.strip() else []
+    skill_gap            = [s for s in job_skills_extracted if s not in resume]
+
+    exp_years_raw = re.findall(r'(\d+)\s+years?', resume)
+    years_exp     = max(map(int, exp_years_raw)) if exp_years_raw else 0
     if 'project' in resume and years_exp == 0:
         years_exp = 1
 
     education_score, education_level = 0, 'none detected'
-    if 'master'    in resume: education_score, education_level = 1.0, 'master'
-    elif 'bachelor' in resume: education_score, education_level = 0.7, 'bachelor'
+    if 'master'      in resume: education_score, education_level = 1.0, 'master'
+    elif 'bachelor'  in resume: education_score, education_level = 0.7, 'bachelor'
     elif 'associate' in resume: education_score, education_level = 0.5, 'associate'
 
     cert_score, cert_level = 0, 'none detected'
@@ -108,29 +142,38 @@ def _score_resume(resume_raw: str, job_raw: str, page_count,
 
     layout = m.classify_layout(resume_raw, page_count)
 
-    qual_score = round((
-        combined      * 0.35 +
-        min(years_exp, 5) / 5 * 0.20 +
-        education_score * 0.25 +
-        cert_score      * 0.10
-    ) * 100, 2)
+    sim_contrib  = round(combined              * 0.35 * 100, 2)
+    exp_contrib  = round(min(years_exp, 5) / 5 * 0.20 * 100, 2)
+    edu_contrib  = round(education_score       * 0.25 * 100, 2)
+    cert_contrib = round(cert_score            * 0.10 * 100, 2)
+    qual_score   = round(sim_contrib + exp_contrib + edu_contrib + cert_contrib, 2)
 
     return {
-        'candidate_name':      m.extract_name(resume_raw),
-        'tfidf_similarity':    tfidf_score,
-        'semantic_similarity': semantic_score,
-        'combined_similarity': combined,
-        'matched_skills':      matched_skills,
-        'years_experience':    years_exp,
-        'education_score':     education_score,
-        'certification_score': cert_score,
+        'candidate_name':       m.extract_name(resume_raw),
+        'tfidf_similarity':     tfidf_score,
+        'semantic_similarity':  semantic_score,
+        'combined_similarity':  combined,
+        'matched_skills':       matched_skills,
+        'skill_gap':            skill_gap,
+        'job_skills_extracted': job_skills_extracted,
+        'years_experience':     years_exp,
+        'exp_years_detected':   list(map(int, exp_years_raw)),
+        'education_score':      education_score,
+        'certification_score':  cert_score,
         'qualifications_score': qual_score,
+        'score_breakdown': {
+            'similarity':    sim_contrib,
+            'experience':    exp_contrib,
+            'education':     edu_contrib,
+            'certification': cert_contrib,
+        },
         'presentation_score':  layout['presentation_score'],
         'formatting_score':    layout['formatting_score'],
         'language_score':      layout['language_score'],
         'concise_score':       layout['concise_score'],
         'organization_score':  layout['organization_score'],
         'layout_feedback':     layout['layout_feedback'],
+        'resume_normalized':   resume,
         '_meta': {
             'education_level': education_level,
             'cert_level':      cert_level,
@@ -139,47 +182,464 @@ def _score_resume(resume_raw: str, job_raw: str, page_count,
 
 
 # ---------------------------------------------------------------------------
+# Shared CSS + JS snippets reused by both UIs
+# ---------------------------------------------------------------------------
+_SHARED_CSS = '''
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: Arial, sans-serif; background: #f3f4f6; padding: 24px; }
+  h1   { font-size: 1.4em; margin-bottom: 20px; color: #111; }
+
+  .nav { margin-bottom: 16px; font-size: 0.85em; }
+  .nav a { color: #2563eb; text-decoration: none; margin-right: 16px; }
+  .nav a:hover { text-decoration: underline; }
+
+  /* Layout */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .card    { background: white; border-radius: 8px; padding: 16px;
+             box-shadow: 0 1px 3px #0001; margin-top: 16px; }
+  .card-header { font-size: 0.78em; text-transform: uppercase; letter-spacing: .06em;
+                 color: #6b7280; margin-bottom: 12px; font-weight: bold; }
+
+  /* Section grouping inside a card */
+  .section       { margin-top: 14px; }
+  .section-title { font-size: 0.82em; font-weight: bold; color: #111; margin-bottom: 6px;
+                   padding-bottom: 4px; border-bottom: 2px solid #e5e7eb; display: flex;
+                   align-items: baseline; gap: 6px; }
+  .section-title .contrib { font-size: 0.85em; font-weight: normal; color: #2563eb; margin-left: auto; }
+  .section-title .weight  { font-size: 0.8em;  font-weight: normal; color: #9ca3af; }
+
+  /* Progress bars */
+  .bar-row   { display: flex; align-items: center; gap: 8px; margin: 5px 0; }
+  .bar-lbl   { font-size: 0.82em; color: #4b5563; flex-shrink: 0; width: 150px; }
+  .bar-lbl.sub { color: #9ca3af; padding-left: 12px; }
+  .bar-bg    { flex: 1; background: #e5e7eb; border-radius: 4px; height: 9px; }
+  .bar-fill  { height: 9px; border-radius: 4px; background: #2563eb; transition: width .4s; }
+  .bar-fill.muted { background: #93c5fd; }
+  .bar-val   { font-size: 0.82em; font-weight: bold; color: #111; width: 30px; text-align: right; }
+
+  /* Key-value rows */
+  .kv       { display: flex; justify-content: space-between; padding: 4px 0;
+              border-bottom: 1px solid #f3f4f6; font-size: 0.82em; }
+  .kv span:last-child { font-weight: bold; color: #111; }
+  .kv-sub   { display: flex; justify-content: space-between; padding: 3px 0 3px 14px;
+              border-bottom: 1px dashed #f3f4f6; font-size: 0.80em; color: #6b7280; }
+  .kv-sub span:last-child { color: #2563eb; font-weight: bold; }
+  .kv-total { display: flex; justify-content: space-between; padding: 6px 0 3px;
+              border-top: 2px solid #e5e7eb; font-size: 0.83em; font-weight: bold; }
+
+  /* Tags */
+  .tags     { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 5px; }
+  .tag      { padding: 2px 8px; border-radius: 12px; font-size: 0.76em; }
+  .tag-blue { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+  .tag-red  { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+  .tag-gray { background:#f9fafb; color:#6b7280; border:1px solid #e5e7eb; }
+
+  /* Badges */
+  .badge       { display:inline-flex; align-items:center; gap:3px; padding:2px 8px;
+                 border-radius:12px; font-size:0.76em; font-weight:bold; }
+  .badge-green { background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; }
+  .badge-red   { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+
+  /* Feedback list */
+  .fb-list    { list-style:none; margin-top:4px; }
+  .fb-list li { font-size:0.81em; color:#b45309; padding:3px 0 3px 14px; position:relative; }
+  .fb-list li:before { content:"⚠"; position:absolute; left:0; }
+
+  /* Misc */
+  .none-msg    { font-size:0.81em; color:#9ca3af; }
+  .ok-msg      { font-size:0.81em; color:#16a34a; }
+  .inline-row  { display:flex; gap:6px; flex-wrap:wrap; margin-top:4px; }
+  .small-gray  { font-size:0.79em; color:#6b7280; margin-top:3px; }
+
+  /* Normalize preview */
+  .norm-toggle { font-size:0.82em; color:#2563eb; cursor:pointer;
+                 user-select:none; font-weight:normal; text-transform:none;
+                 letter-spacing:0; }
+  .norm-toggle:hover { text-decoration:underline; }
+  .norm-text   { display:none; background:#1e1e1e; color:#d4d4d4; font-family:monospace;
+                 font-size:0.76em; padding:10px; border-radius:6px; white-space:pre-wrap;
+                 max-height:220px; overflow-y:auto; margin-top:8px; }
+
+  /* Extracted text (PDF page) */
+  .extracted   { background:#1e1e1e; color:#d4d4d4; font-family:monospace; font-size:0.76em;
+                 padding:12px; border-radius:6px; white-space:pre-wrap;
+                 max-height:300px; overflow-y:auto; margin-top:8px; }
+
+  /* Button / status */
+  textarea  { width:100%; border:1px solid #d1d5db; border-radius:6px; padding:10px;
+              font-size:0.85em; resize:vertical; font-family:monospace; }
+  button    { margin-top:12px; padding:10px 24px; background:#2563eb; color:white;
+              border:none; border-radius:6px; cursor:pointer; font-size:0.95em; width:100%; }
+  button:hover    { background:#1d4ed8; }
+  button:disabled { background:#93c5fd; cursor:not-allowed; }
+  #status   { font-size:0.82em; color:#6b7280; margin-top:8px; min-height:1.2em; }
+  .spinner  { display:inline-block; width:14px; height:14px; border:2px solid #93c5fd;
+              border-top-color:#2563eb; border-radius:50%;
+              animation:spin .7s linear infinite; vertical-align:middle; margin-right:6px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #results  { display:none; }
+  input[type=file] { width:100%; border:1px solid #d1d5db; border-radius:6px;
+                     padding:8px; font-size:0.85em; margin-bottom:12px; }
+  label { display:block; font-size:0.85em; color:#374151; margin-bottom:4px; font-weight:bold; }
+
+  /* Score overview boxes (PDF page) */
+  .score-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin-top:8px; }
+  .score-box  { background:#eff6ff; border:1px solid #bfdbfe; border-radius:8px;
+                padding:14px; text-align:center; }
+  .score-box .val { font-size:2em; font-weight:bold; color:#1e40af; }
+  .score-box .lbl { font-size:0.78em; color:#555; margin-top:4px; }
+'''
+
+_SHARED_JS = '''
+function toggleNorm(id) {
+  const el = document.getElementById(id || 'v-norm');
+  const btn = document.getElementById('norm-btn');
+  if (el.style.display === 'block') {
+    el.style.display = 'none';
+    if (btn) btn.textContent = '▶ show';
+  } else {
+    el.style.display = 'block';
+    if (btn) btn.textContent = '▼ hide';
+  }
+}
+
+function renderResults(d, hasJob) {
+  const el  = id => document.getElementById(id);
+  const pct = v  => Math.round(v * 100);
+
+  const bar = (id, v, muted) => {
+    const p = pct(v);
+    const fill = el('b-' + id);
+    if (fill) { fill.style.width = p + '%'; if (muted) fill.classList.add('muted'); }
+    const val = el('v-' + id);
+    if (val) val.textContent = p;
+  };
+
+  const tags = (id, arr, cls, empty) => {
+    const c = el(id);
+    if (!c) return;
+    c.innerHTML = arr && arr.length
+      ? arr.map(s => `<span class="tag ${cls}">${s}</span>`).join('')
+      : `<span class="${empty.startsWith('✓') ? 'ok-msg' : 'none-msg'}">${empty}</span>`;
+  };
+
+  // ── Candidate name + qualifications total ──────────────────────────────
+  if (el('v-name'))  el('v-name').textContent  = d.candidate_name || '—';
+  if (el('v-qual-total')) el('v-qual-total').textContent = d.qualifications_score ?? '—';
+
+  // ── 1. Job Match ────────────────────────────────────────────────────────
+  const jmSection = el('jm-section');
+  if (jmSection) jmSection.style.display = hasJob ? '' : 'none';
+  const noJobMsg = el('no-job-msg');
+  if (noJobMsg) noJobMsg.style.display = hasJob ? 'none' : '';
+
+  if (hasJob) {
+    bar('comb',  d.combined_similarity);
+    bar('tfidf', d.tfidf_similarity,  true);
+    bar('sem',   d.semantic_similarity, true);
+    if (el('v-sb-sim')) el('v-sb-sim').textContent = d.score_breakdown?.similarity ?? '—';
+  }
+
+  tags('v-skills',    d.matched_skills       || [], 'tag-blue', 'None matched');
+  tags('v-skill-gap', d.skill_gap            || [], 'tag-red',  hasJob ? '✓ No missing skills' : '—');
+  tags('v-job-skills',d.job_skills_extracted || [], 'tag-gray', 'None found');
+  if (el('v-skills-count'))  el('v-skills-count').textContent  = '(' + (d.matched_skills?.length  || 0) + ')';
+  if (el('v-gap-count'))     el('v-gap-count').textContent     = '(' + (d.skill_gap?.length        || 0) + ')';
+  if (el('v-jskills-count')) el('v-jskills-count').textContent = '(' + (d.job_skills_extracted?.length || 0) + ')';
+  const gapWrap = el('gap-wrap');
+  const jsWrap  = el('js-wrap');
+  if (gapWrap) gapWrap.style.display = hasJob ? '' : 'none';
+  if (jsWrap)  jsWrap.style.display  = hasJob ? '' : 'none';
+
+  // ── 2. Experience ───────────────────────────────────────────────────────
+  bar('exp', Math.min(d.years_experience, 5) / 5);
+  if (el('v-yrs'))    el('v-yrs').textContent    = d.years_experience + ' yr(s)';
+  if (el('v-expyrs')) el('v-expyrs').textContent = (d.exp_years_detected || []).join(', ') || 'none found';
+  if (el('v-sb-exp')) el('v-sb-exp').textContent = d.score_breakdown?.experience ?? '—';
+
+  // ── 3. Education ────────────────────────────────────────────────────────
+  bar('edu', d.education_score);
+  if (el('v-edlvl'))  el('v-edlvl').textContent  = d.debug?.education_level || '—';
+  if (el('v-sb-edu')) el('v-sb-edu').textContent = d.score_breakdown?.education ?? '—';
+
+  // ── 4. Certification ────────────────────────────────────────────────────
+  bar('cert', d.certification_score);
+  if (el('v-certlvl'))  el('v-certlvl').textContent  = d.debug?.cert_level || '—';
+  if (el('v-sb-cert'))  el('v-sb-cert').textContent  = d.score_breakdown?.certification ?? '—';
+
+  // ── Presentation ────────────────────────────────────────────────────────
+  bar('pres', d.presentation_score);
+  bar('fmt',  d.formatting_score);
+  bar('lang', d.language_score);
+  bar('conc', d.concise_score);
+  bar('org',  d.organization_score);
+
+  const dbg = d.debug || {};
+  if (el('v-wc'))  el('v-wc').textContent  = dbg.word_count;
+  if (el('v-pc'))  el('v-pc').textContent  = dbg.page_count ?? 'not provided';
+  if (el('v-blr')) el('v-blr').textContent = ((dbg.blank_ratio || 0) * 100).toFixed(1) + '%';
+  if (el('v-bl'))  el('v-bl').textContent  = dbg.bullet_line_count;
+  if (el('v-hl'))  el('v-hl').textContent  = dbg.heading_line_count;
+  if (el('v-av'))  el('v-av').textContent  = (dbg.action_verbs_found || []).join(', ') || '—';
+  if (el('v-ll'))  el('v-ll').textContent  = dbg.long_lines_count;
+  if (el('v-sc'))  el('v-sc').textContent  = dbg.special_chars_count;
+
+  // Contact badges
+  ['email','phone'].forEach(k => {
+    const b = el('v-' + k + '-badge');
+    if (!b) return;
+    const ok = k === 'email' ? dbg.has_email : dbg.has_phone;
+    b.className   = 'badge ' + (ok ? 'badge-green' : 'badge-red');
+    b.textContent = (ok ? '✓ ' : '✗ ') + k.charAt(0).toUpperCase() + k.slice(1);
+  });
+
+  // Detected sections
+  tags('v-sections', dbg.detected_sections || [], 'tag-gray', 'None detected');
+
+  // Date range
+  const dr = dbg.date_range || {};
+  if (el('v-daterange')) el('v-daterange').textContent = (dr.earliest && dr.latest)
+    ? dr.earliest + ' → ' + dr.latest : 'None found';
+  if (el('v-datelist')) el('v-datelist').textContent = dr.all?.length
+    ? 'All: ' + dr.all.join(', ') : '';
+
+  // Informal markers
+  if (el('v-informal')) {
+    const inf = dbg.informal_markers_found || [];
+    el('v-informal').innerHTML = inf.length
+      ? inf.map(m => `<span class="tag tag-red">${m}</span>`).join('')
+      : '<span class="ok-msg">✓ None found</span>';
+  }
+
+  // Feedback
+  if (el('v-feedback')) {
+    const all = Object.values(d.layout_feedback || {}).flat();
+    el('v-feedback').innerHTML = all.length
+      ? all.map(f => `<li>${f}</li>`).join('')
+      : '<li class="ok-msg" style="list-style:none">✓ No presentation issues detected</li>';
+  }
+
+  // Normalized text
+  if (el('v-norm')) el('v-norm').textContent = d.resume_normalized || '';
+}
+'''
+
+
+# ---------------------------------------------------------------------------
+# Shared HTML blocks for the qualifications and presentation panels
+# (used by both the paste-text UI and the PDF UI so they stay in sync)
+# ---------------------------------------------------------------------------
+def _qual_panel_html():
+    return '''
+    <div class="card">
+      <div class="card-header">Qualifications &ensp; <span id="v-qual-total" style="font-size:1.4em;font-weight:bold;color:#111">—</span><span style="font-size:0.85em;color:#888">/100</span></div>
+
+      <!-- Candidate -->
+      <div class="kv" style="margin-bottom:6px"><span>Candidate</span><span id="v-name">—</span></div>
+
+      <!-- NO JOB notice -->
+      <div id="no-job-msg" class="small-gray" style="display:none;font-style:italic;margin-bottom:8px">
+        No job description — Job Match scores not available.
+      </div>
+
+      <!-- 1. JOB MATCH / SKILLS -->
+      <div class="section" id="jm-section">
+        <div class="section-title">
+          1 · Job Match &amp; Skills
+          <span class="weight">(×35%)</span>
+          <span class="contrib" id="v-sb-sim">—</span>
+        </div>
+
+        <!-- Combined score -->
+        <div class="bar-row">
+          <span class="bar-lbl">Match Score</span>
+          <div class="bar-bg"><div class="bar-fill" id="b-comb"></div></div>
+          <span class="bar-val" id="v-comb"></span>
+        </div>
+        <!-- Keyword + Semantic as sub-detail -->
+        <div class="bar-row">
+          <span class="bar-lbl sub">↳ Keyword (TF-IDF)</span>
+          <div class="bar-bg"><div class="bar-fill muted" id="b-tfidf"></div></div>
+          <span class="bar-val" id="v-tfidf"></span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl sub">↳ Semantic</span>
+          <div class="bar-bg"><div class="bar-fill muted" id="b-sem"></div></div>
+          <span class="bar-val" id="v-sem"></span>
+        </div>
+
+        <!-- Matched skills -->
+        <div style="margin-top:10px;font-size:0.81em;font-weight:bold;color:#374151">
+          Matched Skills <span id="v-skills-count" style="font-weight:normal;color:#9ca3af"></span>
+        </div>
+        <div class="tags" id="v-skills"></div>
+
+        <!-- Skill gap -->
+        <div id="gap-wrap">
+          <div style="margin-top:8px;font-size:0.81em;font-weight:bold;color:#374151">
+            Skill Gap <span id="v-gap-count" style="font-weight:normal;color:#9ca3af"></span>
+            <span style="font-weight:normal;color:#9ca3af"> — in job, missing from resume</span>
+          </div>
+          <div class="tags" id="v-skill-gap"></div>
+        </div>
+
+        <!-- Job skills detected -->
+        <div id="js-wrap">
+          <div style="margin-top:8px;font-size:0.81em;font-weight:bold;color:#374151">
+            Job Skills Detected <span id="v-jskills-count" style="font-weight:normal;color:#9ca3af"></span>
+          </div>
+          <div class="tags" id="v-job-skills"></div>
+        </div>
+      </div>
+
+      <!-- 2. EXPERIENCE -->
+      <div class="section">
+        <div class="section-title">
+          2 · Experience
+          <span class="weight">(×20%)</span>
+          <span class="contrib" id="v-sb-exp">—</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Years (capped at 5)</span>
+          <div class="bar-bg"><div class="bar-fill" id="b-exp"></div></div>
+          <span class="bar-val" id="v-exp"></span>
+        </div>
+        <div class="kv" style="margin-top:6px"><span>Years Detected</span><span id="v-yrs">—</span></div>
+        <div class="kv"><span>Raw Values Found</span><span id="v-expyrs" style="color:#6b7280;font-size:0.9em">—</span></div>
+      </div>
+
+      <!-- 3. EDUCATION -->
+      <div class="section">
+        <div class="section-title">
+          3 · Education
+          <span class="weight">(×25%)</span>
+          <span class="contrib" id="v-sb-edu">—</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Education Score</span>
+          <div class="bar-bg"><div class="bar-fill" id="b-edu"></div></div>
+          <span class="bar-val" id="v-edu"></span>
+        </div>
+        <div class="kv" style="margin-top:6px"><span>Level Detected</span><span id="v-edlvl">—</span></div>
+      </div>
+
+      <!-- 4. CERTIFICATION -->
+      <div class="section">
+        <div class="section-title">
+          4 · Certification
+          <span class="weight">(×10%)</span>
+          <span class="contrib" id="v-sb-cert">—</span>
+        </div>
+        <div class="bar-row">
+          <span class="bar-lbl">Certification Score</span>
+          <div class="bar-bg"><div class="bar-fill" id="b-cert"></div></div>
+          <span class="bar-val" id="v-cert"></span>
+        </div>
+        <div class="kv" style="margin-top:6px"><span>Level Detected</span><span id="v-certlvl">—</span></div>
+      </div>
+
+    </div>
+'''
+
+
+def _pres_panel_html():
+    return '''
+    <div class="card">
+      <div class="card-header">Presentation Quality</div>
+
+      <!-- Overall + sub-scores -->
+      <div class="section">
+        <div class="section-title">Overall Score</div>
+        <div class="bar-row">
+          <span class="bar-lbl"><strong>Overall</strong></span>
+          <div class="bar-bg"><div class="bar-fill" id="b-pres"></div></div>
+          <span class="bar-val" id="v-pres"></span>
+        </div>
+        <div style="padding-left:14px;border-left:3px solid #e5e7eb;margin:6px 0 0 4px">
+          <div class="bar-row">
+            <span class="bar-lbl sub">Formatting</span>
+            <div class="bar-bg"><div class="bar-fill muted" id="b-fmt"></div></div>
+            <span class="bar-val" id="v-fmt"></span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-lbl sub">Language</span>
+            <div class="bar-bg"><div class="bar-fill muted" id="b-lang"></div></div>
+            <span class="bar-val" id="v-lang"></span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-lbl sub">Conciseness</span>
+            <div class="bar-bg"><div class="bar-fill muted" id="b-conc"></div></div>
+            <span class="bar-val" id="v-conc"></span>
+          </div>
+          <div class="bar-row">
+            <span class="bar-lbl sub">Organization</span>
+            <div class="bar-bg"><div class="bar-fill muted" id="b-org"></div></div>
+            <span class="bar-val" id="v-org"></span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Document metadata -->
+      <div class="section">
+        <div class="section-title">Document Metadata</div>
+        <div class="kv"><span>Word Count</span><span id="v-wc">—</span></div>
+        <div class="kv"><span>Page Count</span><span id="v-pc">—</span></div>
+        <div class="kv"><span>Blank Line Ratio</span><span id="v-blr">—</span></div>
+        <div class="kv"><span>Bullet Lines</span><span id="v-bl">—</span></div>
+        <div class="kv"><span>Heading Lines</span><span id="v-hl">—</span></div>
+        <div class="kv"><span>Long Lines (&gt;35 words)</span><span id="v-ll">—</span></div>
+        <div class="kv"><span>Special/Decorative Chars</span><span id="v-sc">—</span></div>
+      </div>
+
+      <!-- Contact info -->
+      <div class="section">
+        <div class="section-title">Contact Info</div>
+        <div class="inline-row" style="margin-top:6px">
+          <span id="v-email-badge" class="badge">—</span>
+          <span id="v-phone-badge" class="badge">—</span>
+        </div>
+      </div>
+
+      <!-- Structure -->
+      <div class="section">
+        <div class="section-title">Detected Sections</div>
+        <div class="tags" id="v-sections"></div>
+      </div>
+
+      <!-- Dates -->
+      <div class="section">
+        <div class="section-title">Date Range</div>
+        <div class="kv"><span>Earliest → Latest</span><span id="v-daterange">—</span></div>
+        <div class="small-gray" id="v-datelist"></div>
+      </div>
+
+      <!-- Language signals -->
+      <div class="section">
+        <div class="section-title">Language Signals</div>
+        <div class="kv"><span>Action Verbs Found</span><span id="v-av" style="font-size:0.85em;text-align:right;max-width:200px">—</span></div>
+        <div style="margin-top:6px;font-size:0.81em;color:#374151;font-weight:bold;margin-bottom:4px">Informal Markers</div>
+        <div id="v-informal"></div>
+      </div>
+
+      <!-- Feedback -->
+      <div class="section">
+        <div class="section-title">Feedback</div>
+        <ul class="fb-list" id="v-feedback"></ul>
+      </div>
+    </div>
+'''
+
+
+# ---------------------------------------------------------------------------
 # Route: GET /  →  paste-text debug UI
 # ---------------------------------------------------------------------------
 @debug_bp.route('/', methods=['GET'])
 def debug_ui():
-    return '''<!DOCTYPE html>
+    return f'''<!DOCTYPE html>
 <html>
 <head>
 <title>ARES NLP Debug</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; background: #f3f4f6; padding: 24px; }
-  h1 { font-size: 1.4em; margin-bottom: 20px; color: #111; }
-  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px #0001; }
-  .card h2 { font-size: 0.85em; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin-bottom: 10px; }
-  textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 10px; font-size: 0.85em; resize: vertical; font-family: monospace; }
-  button { margin-top: 12px; padding: 10px 24px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95em; width: 100%; }
-  button:hover { background: #1d4ed8; }
-  button:disabled { background: #93c5fd; cursor: not-allowed; }
-  .section { margin-top: 16px; }
-  .section h3 { font-size: 0.9em; font-weight: bold; color: #374151; margin-bottom: 8px; padding-bottom: 4px; border-bottom: 1px solid #e5e7eb; }
-  .score-row { display: flex; align-items: center; gap: 10px; margin: 6px 0; }
-  .score-label { width: 160px; font-size: 0.85em; color: #4b5563; flex-shrink: 0; }
-  .bar-bg { flex: 1; background: #e5e7eb; border-radius: 4px; height: 10px; }
-  .bar-fill { height: 10px; border-radius: 4px; background: #2563eb; transition: width .4s; }
-  .score-val { width: 42px; text-align: right; font-size: 0.85em; font-weight: bold; color: #111; }
-  .tag-list { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-  .tag { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 12px; font-size: 0.78em; }
-  .kv { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.85em; }
-  .kv span:last-child { font-weight: bold; color: #111; }
-  .fb-list { list-style: none; }
-  .fb-list li { font-size: 0.82em; color: #b45309; padding: 3px 0 3px 14px; position: relative; }
-  .fb-list li:before { content: "⚠"; position: absolute; left: 0; }
-  #status { font-size: 0.82em; color: #6b7280; margin-top: 8px; min-height: 1.2em; }
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #93c5fd; border-top-color: #2563eb; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #results { display: none; }
-  .nav { margin-bottom: 16px; font-size: 0.85em; }
-  .nav a { color: #2563eb; text-decoration: none; margin-right: 16px; }
-  .nav a:hover { text-decoration: underline; }
-</style>
+<style>{_SHARED_CSS}</style>
 </head>
 <body>
 <h1>🔍 ARES NLP Debug</h1>
@@ -187,159 +647,76 @@ def debug_ui():
   <a href="/">📋 Paste Text</a>
   <a href="/debug">📄 Upload PDF</a>
 </div>
-<div class="grid">
-  <div class="card">
-    <h2>Resume Text</h2>
+
+<div class="two-col" style="margin-top:0">
+  <div class="card" style="margin-top:0">
+    <div class="card-header">Resume Text</div>
     <textarea id="resume" rows="18" placeholder="Paste extracted resume text here..."></textarea>
   </div>
-  <div class="card">
-    <h2>Job Description (optional)</h2>
+  <div class="card" style="margin-top:0">
+    <div class="card-header">Job Description (optional)</div>
     <textarea id="job" rows="18" placeholder="Paste job description here..."></textarea>
   </div>
 </div>
-<div class="card" style="margin-top:16px">
+<div class="card">
   <button id="btn" onclick="analyze()">Analyze</button>
   <div id="status"></div>
 </div>
 
 <div id="results">
-  <div class="grid" style="margin-top:16px">
-    <div class="card">
-      <h2>Qualifications</h2>
-      <div class="section" id="no-job-notice" style="display:none">
-        <p style="font-size:0.82em;color:#6b7280;font-style:italic">No job description — similarity scores not available.</p>
-      </div>
-      <div class="section" id="similarity-section">
-        <div class="score-row"><span class="score-label">TF-IDF Similarity</span><div class="bar-bg"><div class="bar-fill" id="b-tfidf"></div></div><span class="score-val" id="v-tfidf"></span></div>
-        <div class="score-row"><span class="score-label">Semantic Similarity</span><div class="bar-bg"><div class="bar-fill" id="b-sem"></div></div><span class="score-val" id="v-sem"></span></div>
-        <div class="score-row"><span class="score-label">Combined</span><div class="bar-bg"><div class="bar-fill" id="b-comb"></div></div><span class="score-val" id="v-comb"></span></div>
-      </div>
-      <div class="section">
-        <h3>Sub-scores</h3>
-        <div class="score-row"><span class="score-label">Education</span><div class="bar-bg"><div class="bar-fill" id="b-edu"></div></div><span class="score-val" id="v-edu"></span></div>
-        <div class="score-row"><span class="score-label">Certification</span><div class="bar-bg"><div class="bar-fill" id="b-cert"></div></div><span class="score-val" id="v-cert"></span></div>
-        <div class="score-row"><span class="score-label">Experience</span><div class="bar-bg"><div class="bar-fill" id="b-exp"></div></div><span class="score-val" id="v-exp"></span></div>
-      </div>
-      <div class="section">
-        <h3>Extracted</h3>
-        <div class="kv"><span>Candidate Name</span><span id="v-name"></span></div>
-        <div class="kv"><span>Years Experience</span><span id="v-yrs"></span></div>
-        <div class="kv"><span>Education Level</span><span id="v-edlvl"></span></div>
-        <div class="kv"><span>Certification</span><span id="v-certlvl"></span></div>
-        <h3 style="margin-top:10px">Matched Skills</h3>
-        <div class="tag-list" id="v-skills"></div>
-      </div>
-    </div>
+  <div class="two-col">
+    {_qual_panel_html()}
+    {_pres_panel_html()}
+  </div>
 
-    <div class="card">
-      <h2>Presentation Quality</h2>
-      <div class="section">
-        <div class="score-row"><span class="score-label"><strong>Overall</strong></span><div class="bar-bg"><div class="bar-fill" id="b-pres"></div></div><span class="score-val" id="v-pres"></span></div>
-        <div style="padding-left:12px;border-left:3px solid #e5e7eb;margin-left:6px;margin-top:4px">
-          <div class="score-row"><span class="score-label" style="color:#6b7280">Formatting</span><div class="bar-bg"><div class="bar-fill" id="b-fmt"></div></div><span class="score-val" id="v-fmt"></span></div>
-          <div class="score-row"><span class="score-label" style="color:#6b7280">Language</span><div class="bar-bg"><div class="bar-fill" id="b-lang"></div></div><span class="score-val" id="v-lang"></span></div>
-          <div class="score-row"><span class="score-label" style="color:#6b7280">Conciseness</span><div class="bar-bg"><div class="bar-fill" id="b-conc"></div></div><span class="score-val" id="v-conc"></span></div>
-          <div class="score-row"><span class="score-label" style="color:#6b7280">Organization</span><div class="bar-bg"><div class="bar-fill" id="b-org"></div></div><span class="score-val" id="v-org"></span></div>
-        </div>
-      </div>
-      <div class="section">
-        <h3>Extracted Metadata</h3>
-        <div class="kv"><span>Word Count</span><span id="v-wc"></span></div>
-        <div class="kv"><span>Page Count</span><span id="v-pc"></span></div>
-        <div class="kv"><span>Blank Line Ratio</span><span id="v-blr"></span></div>
-        <div class="kv"><span>Bullet Lines</span><span id="v-bl"></span></div>
-        <div class="kv"><span>Heading Lines</span><span id="v-hl"></span></div>
-        <div class="kv"><span>Action Verbs Found</span><span id="v-av"></span></div>
-      </div>
-      <div class="section">
-        <h3>Feedback</h3>
-        <ul class="fb-list" id="v-feedback"></ul>
-      </div>
+  <!-- Normalized text preview -->
+  <div class="card">
+    <div class="card-header">
+      Normalized Text Preview &ensp;
+      <span class="norm-toggle" id="norm-btn" onclick="toggleNorm('v-norm')">▶ show</span>
     </div>
+    <div class="norm-text" id="v-norm"></div>
   </div>
 </div>
 
 <script>
-async function analyze() {
+{_SHARED_JS}
+
+async function analyze() {{
   const resume = document.getElementById('resume').value.trim();
   const job    = document.getElementById('job').value.trim();
-  if (!resume) { alert('Paste resume text first.'); return; }
+  if (!resume) {{ alert('Paste resume text first.'); return; }}
 
   const btn = document.getElementById('btn');
-  const status = document.getElementById('status');
   btn.disabled = true;
-  status.innerHTML = '<span class="spinner"></span>Analyzing...';
+  document.getElementById('status').innerHTML = '<span class="spinner"></span>Analyzing...';
   document.getElementById('results').style.display = 'none';
 
-  try {
-    const res = await fetch('/debug', {
+  try {{
+    const res = await fetch('/debug', {{
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resume, job })
-    });
+      headers: {{ 'Content-Type': 'application/json' }},
+      body: JSON.stringify({{ resume, job }})
+    }});
     const d = await res.json();
-    if (d.error) { status.textContent = 'Error: ' + d.error; return; }
+    if (d.error) {{ document.getElementById('status').textContent = 'Error: ' + d.error; return; }}
 
-    const pct = v => Math.round(v * 100);
-    const bar = (id, v) => {
-      document.getElementById('b-' + id).style.width = pct(v) + '%';
-      document.getElementById('v-' + id).textContent = pct(v);
-    };
-
-    const hasJob = job.length > 0;
-    document.getElementById('similarity-section').style.display = hasJob ? '' : 'none';
-    document.getElementById('no-job-notice').style.display      = hasJob ? 'none' : '';
-    if (hasJob) {
-      bar('tfidf', d.tfidf_similarity);
-      bar('sem',   d.semantic_similarity);
-      bar('comb',  d.combined_similarity);
-    }
-
-    bar('edu',  d.education_score);
-    bar('cert', d.certification_score);
-    bar('exp',  Math.min(d.years_experience, 5) / 5);
-    bar('pres', d.presentation_score);
-    bar('fmt',  d.formatting_score);
-    bar('lang', d.language_score);
-    bar('conc', d.concise_score);
-    bar('org',  d.organization_score);
-
-    const dbg = d.debug;
-    document.getElementById('v-name').textContent  = d.candidate_name || '—';
-    document.getElementById('v-yrs').textContent   = d.years_experience + ' yr(s)';
-    document.getElementById('v-edlvl').textContent = dbg.education_level || '—';
-    document.getElementById('v-certlvl').textContent = dbg.cert_level || '—';
-    document.getElementById('v-wc').textContent    = dbg.word_count;
-    document.getElementById('v-pc').textContent    = dbg.page_count ?? 'not provided';
-    document.getElementById('v-blr').textContent   = (dbg.blank_ratio * 100).toFixed(1) + '%';
-    document.getElementById('v-bl').textContent    = dbg.bullet_line_count;
-    document.getElementById('v-hl').textContent    = dbg.heading_line_count;
-    document.getElementById('v-av').textContent    = dbg.action_verbs_found.join(', ') || '—';
-
-    document.getElementById('v-skills').innerHTML = d.matched_skills.length
-      ? d.matched_skills.map(s => `<span class="tag">${s}</span>`).join('')
-      : '<span style="color:#9ca3af;font-size:.82em">None matched</span>';
-
-    const all = Object.values(d.layout_feedback).flat();
-    document.getElementById('v-feedback').innerHTML = all.length
-      ? all.map(f => `<li>${f}</li>`).join('')
-      : '<li style="color:#16a34a;list-style:none">✓ No presentation issues detected</li>';
-
+    renderResults(d, job.length > 0);
     document.getElementById('results').style.display = 'block';
-    status.textContent = 'Done.';
-  } catch(e) {
-    status.textContent = 'Request failed: ' + e.message;
-  } finally {
+    document.getElementById('status').textContent = 'Done.';
+  }} catch(e) {{
+    document.getElementById('status').textContent = 'Request failed: ' + e.message;
+  }} finally {{
     btn.disabled = false;
-  }
-}
+  }}
+}}
 </script>
 </body>
 </html>'''
 
 
 # ---------------------------------------------------------------------------
-# Route: POST /debug  →  JSON endpoint used by the paste-text UI
+# Route: POST /debug  →  JSON endpoint
 # ---------------------------------------------------------------------------
 @debug_bp.route('/debug', methods=['POST'])
 def debug_analyze():
@@ -362,7 +739,6 @@ def debug_analyze():
                 'cert_level':      result['_meta']['cert_level'],
             },
         })
-
     except Exception as e:
         return jsonify({'error': str(e)})
 
@@ -372,44 +748,12 @@ def debug_analyze():
 # ---------------------------------------------------------------------------
 @debug_bp.route('/debug', methods=['GET'])
 def debug_form():
-    return '''<!DOCTYPE html>
+    return f'''<!DOCTYPE html>
 <html>
 <head>
 <title>ARES NLP Debug — Upload PDF</title>
-<style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: Arial, sans-serif; background: #f3f4f6; padding: 24px; max-width: 960px; margin: 0 auto; }
-  h1 { font-size: 1.4em; margin-bottom: 20px; color: #111; }
-  .nav { margin-bottom: 16px; font-size: 0.85em; }
-  .nav a { color: #2563eb; text-decoration: none; margin-right: 16px; }
-  .nav a:hover { text-decoration: underline; }
-  .card { background: white; border-radius: 8px; padding: 16px; box-shadow: 0 1px 3px #0001; margin-bottom: 16px; }
-  .card h2 { font-size: 0.85em; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin-bottom: 12px; }
-  label { display: block; font-size: 0.85em; color: #374151; margin-bottom: 4px; font-weight: bold; }
-  input[type=file], textarea { width: 100%; border: 1px solid #d1d5db; border-radius: 6px; padding: 8px; font-size: 0.85em; margin-bottom: 12px; }
-  textarea { resize: vertical; font-family: monospace; }
-  button { padding: 10px 24px; background: #2563eb; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 0.95em; }
-  button:hover { background: #1d4ed8; }
-  button:disabled { background: #93c5fd; }
-  .score-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 8px; }
-  .score-box { background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px; padding: 14px; text-align: center; }
-  .score-box .val { font-size: 2em; font-weight: bold; color: #1e40af; }
-  .score-box .lbl { font-size: 0.78em; color: #555; margin-top: 4px; }
-  .bar-wrap { margin: 6px 0; }
-  .bar-bg { background: #e5e7eb; border-radius: 4px; height: 10px; }
-  .bar-fill { height: 10px; border-radius: 4px; background: #2563eb; }
-  .bar-label { display: flex; justify-content: space-between; font-size: 0.8em; color: #6b7280; }
-  .sub { padding-left: 12px; border-left: 3px solid #e5e7eb; margin-left: 6px; margin-top: 4px; }
-  .kv { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #f3f4f6; font-size: 0.85em; }
-  .kv span:last-child { font-weight: bold; }
-  .tag { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; padding: 2px 8px; border-radius: 12px; font-size: 0.78em; margin: 2px; display: inline-block; }
-  .fb-list li { font-size: 0.82em; color: #b45309; padding: 3px 0 3px 14px; position: relative; list-style: none; }
-  .fb-list li:before { content: "⚠"; position: absolute; left: 0; }
-  .extracted { background: #1e1e1e; color: #d4d4d4; font-family: monospace; font-size: 0.78em; padding: 12px; border-radius: 6px; white-space: pre-wrap; max-height: 300px; overflow-y: auto; margin-top: 8px; }
-  #status { font-size: 0.82em; color: #6b7280; margin-top: 8px; }
-  .spinner { display: inline-block; width: 14px; height: 14px; border: 2px solid #93c5fd; border-top-color: #2563eb; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: middle; margin-right: 6px; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  #results { display: none; }
+<style>{_SHARED_CSS}
+  body {{ max-width: 1060px; margin: 0 auto; }}
 </style>
 </head>
 <body>
@@ -419,8 +763,8 @@ def debug_form():
   <a href="/debug">📄 Upload PDF</a>
 </div>
 
-<div class="card">
-  <h2>Upload Resume PDF</h2>
+<div class="card" style="margin-top:0">
+  <div class="card-header">Upload Resume PDF</div>
   <label>Resume PDF</label>
   <input type="file" id="pdfFile" accept="application/pdf">
   <label>Job Description (optional)</label>
@@ -430,75 +774,43 @@ def debug_form():
 </div>
 
 <div id="results">
+
+  <!-- Score overview -->
   <div class="card">
-    <h2>Scores Overview</h2>
+    <div class="card-header">Scores Overview</div>
     <div class="score-grid">
       <div class="score-box"><div class="val" id="s-qual">—</div><div class="lbl">Qualifications /100</div></div>
       <div class="score-box"><div class="val" id="s-pres">—</div><div class="lbl">Presentation /100</div></div>
     </div>
   </div>
 
-  <div class="card">
-    <h2>Qualifications Detail</h2>
-    <div id="sim-section">
-      <div class="bar-label"><span>TF-IDF Similarity</span><span id="l-tfidf"></span></div>
-      <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-tfidf"></div></div></div>
-      <div class="bar-label"><span>Semantic Similarity</span><span id="l-sem"></span></div>
-      <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-sem"></div></div></div>
-      <div class="bar-label"><span>Combined</span><span id="l-comb"></span></div>
-      <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-comb"></div></div></div>
-    </div>
-    <div id="no-job" style="display:none;font-size:0.82em;color:#6b7280;font-style:italic;margin-bottom:8px">No job description — similarity scores not available.</div>
-    <div class="bar-label" style="margin-top:8px"><span>Education</span><span id="l-edu"></span></div>
-    <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-edu"></div></div></div>
-    <div class="bar-label"><span>Certification</span><span id="l-cert"></span></div>
-    <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-cert"></div></div></div>
-    <div class="bar-label"><span>Experience</span><span id="l-exp"></span></div>
-    <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-exp"></div></div></div>
-    <div style="margin-top:12px">
-      <div class="kv"><span>Candidate</span><span id="v-name"></span></div>
-      <div class="kv"><span>Education Level</span><span id="v-edu"></span></div>
-      <div class="kv"><span>Cert Level</span><span id="v-cert"></span></div>
-      <div class="kv"><span>Years Experience</span><span id="v-exp"></span></div>
-    </div>
-    <div style="margin-top:8px"><strong style="font-size:0.85em">Matched Skills</strong><br><div id="v-skills" style="margin-top:6px"></div></div>
+  <div class="two-col">
+    {_qual_panel_html()}
+    {_pres_panel_html()}
   </div>
 
+  <!-- Extracted text -->
   <div class="card">
-    <h2>Presentation Detail</h2>
-    <div class="bar-label"><span><strong>Overall</strong></span><span id="l-pres"></span></div>
-    <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-pres"></div></div></div>
-    <div class="sub">
-      <div class="bar-label"><span>Formatting</span><span id="l-fmt"></span></div>
-      <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-fmt"></div></div></div>
-      <div class="bar-label"><span>Language</span><span id="l-lang"></span></div>
-      <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-lang"></div></div></div>
-      <div class="bar-label"><span>Conciseness</span><span id="l-conc"></span></div>
-      <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-conc"></div></div></div>
-      <div class="bar-label"><span>Organization</span><span id="l-org"></span></div>
-      <div class="bar-wrap"><div class="bar-bg"><div class="bar-fill" id="b-org"></div></div></div>
-    </div>
-    <div style="margin-top:12px">
-      <div class="kv"><span>Word Count</span><span id="v-wc"></span></div>
-      <div class="kv"><span>Page Count</span><span id="v-pc"></span></div>
-      <div class="kv"><span>Blank Line Ratio</span><span id="v-blr"></span></div>
-      <div class="kv"><span>Bullet Lines</span><span id="v-bl"></span></div>
-      <div class="kv"><span>Heading Lines</span><span id="v-hl"></span></div>
-      <div class="kv"><span>Action Verbs</span><span id="v-av"></span></div>
-    </div>
-    <div style="margin-top:10px"><strong style="font-size:0.85em">Feedback</strong><ul class="fb-list" id="v-feedback" style="margin-top:4px"></ul></div>
-  </div>
-
-  <div class="card">
-    <h2>Extracted Text</h2>
+    <div class="card-header">Extracted Text</div>
     <div class="extracted" id="v-text"></div>
+  </div>
+
+  <!-- Normalized text preview -->
+  <div class="card">
+    <div class="card-header">
+      Normalized Text Preview &ensp;
+      <span class="norm-toggle" id="norm-btn" onclick="toggleNorm('v-norm')">▶ show</span>
+    </div>
+    <div class="norm-text" id="v-norm"></div>
   </div>
 </div>
 
 <script>
-async function upload() {
+{_SHARED_JS}
+
+async function upload() {{
   const file = document.getElementById('pdfFile').files[0];
-  if (!file) { alert('Select a PDF first.'); return; }
+  if (!file) {{ alert('Select a PDF first.'); return; }}
   const btn = document.getElementById('btn');
   btn.disabled = true;
   document.getElementById('status').innerHTML = '<span class="spinner"></span>Analysing...';
@@ -508,61 +820,29 @@ async function upload() {
   fd.append('pdf', file);
   fd.append('job', document.getElementById('jobDesc').value.trim());
 
-  try {
-    const res = await fetch('/debug/analyse', { method: 'POST', body: fd });
+  try {{
+    const res = await fetch('/debug/analyse', {{ method: 'POST', body: fd }});
     const d   = await res.json();
-    if (d.error) { document.getElementById('status').textContent = 'Error: ' + d.error; return; }
+    if (d.error) {{ document.getElementById('status').textContent = 'Error: ' + d.error; return; }}
 
     const pct = v => Math.round(v * 100);
-    const bar = (id, v) => {
-      const p = pct(v);
-      document.getElementById('b-' + id).style.width = p + '%';
-      if (document.getElementById('l-' + id))
-        document.getElementById('l-' + id).textContent = p + '/100';
-    };
-
     document.getElementById('s-qual').textContent = Math.round(d.qualifications_score);
     document.getElementById('s-pres').textContent = pct(d.presentation_score);
 
     const hasJob = document.getElementById('jobDesc').value.trim().length > 0;
-    document.getElementById('sim-section').style.display = hasJob ? '' : 'none';
-    document.getElementById('no-job').style.display      = hasJob ? 'none' : '';
-    if (hasJob) { bar('tfidf', d.tfidf_similarity); bar('sem', d.semantic_similarity); bar('comb', d.combined_similarity); }
+    renderResults(d, hasJob);
 
-    bar('edu', d.education_score); bar('cert', d.certification_score);
-    bar('exp', Math.min(d.years_experience, 5) / 5);
-    bar('pres', d.presentation_score); bar('fmt', d.formatting_score);
-    bar('lang', d.language_score); bar('conc', d.concise_score); bar('org', d.organization_score);
+    const vt = document.getElementById('v-text');
+    if (vt) vt.textContent = d.extracted_text || '';
 
-    document.getElementById('v-name').textContent = d.candidate_name || '—';
-    document.getElementById('v-edu').textContent  = d.debug.education_level || '—';
-    document.getElementById('v-cert').textContent = d.debug.cert_level || '—';
-    document.getElementById('v-exp').textContent  = d.years_experience + ' yr(s)';
-    document.getElementById('v-wc').textContent   = d.debug.word_count;
-    document.getElementById('v-pc').textContent   = d.debug.page_count ?? '—';
-    document.getElementById('v-blr').textContent  = (d.debug.blank_ratio * 100).toFixed(1) + '%';
-    document.getElementById('v-bl').textContent   = d.debug.bullet_line_count;
-    document.getElementById('v-hl').textContent   = d.debug.heading_line_count;
-    document.getElementById('v-av').textContent   = (d.debug.action_verbs_found || []).join(', ') || '—';
-
-    document.getElementById('v-skills').innerHTML = (d.matched_skills || []).length
-      ? d.matched_skills.map(s => `<span class="tag">${s}</span>`).join('')
-      : '<span style="color:#9ca3af;font-size:.82em">None matched</span>';
-
-    const all = Object.values(d.layout_feedback || {}).flat();
-    document.getElementById('v-feedback').innerHTML = all.length
-      ? all.map(f => `<li>${f}</li>`).join('')
-      : '<li style="color:#16a34a">✓ No issues detected</li>';
-
-    document.getElementById('v-text').textContent = d.extracted_text || '';
     document.getElementById('results').style.display = 'block';
     document.getElementById('status').textContent = 'Done.';
-  } catch(e) {
+  }} catch(e) {{
     document.getElementById('status').textContent = 'Request failed: ' + e.message;
-  } finally {
+  }} finally {{
     btn.disabled = false;
-  }
-}
+  }}
+}}
 </script>
 </body>
 </html>'''

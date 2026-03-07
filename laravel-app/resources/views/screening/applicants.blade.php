@@ -2,7 +2,7 @@
 <html>
 <head><title>Screening - {{ $job->title }}</title></head>
 <body style="padding:20px">
-    <p><a href="/dashboard">&larr; Back to Dashboard</a></p>
+    <p><a href="/recruiter">&larr; Back to Dashboard</a></p>
     <h2>Applicants for: {{ $job->title }}</h2>
 
     <hr>

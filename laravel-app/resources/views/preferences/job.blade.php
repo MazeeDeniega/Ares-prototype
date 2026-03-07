@@ -19,7 +19,7 @@
     </style>
 </head>
 <body>
-    <p><a href="/dashboard">&larr; Back to Dashboard</a></p>
+    <p><a href="/recruiter">&larr; Back to Dashboard</a></p>
     <h2>Preferences for: {{ $job->title }}</h2>
 
     @if($errors->any())
@@ -104,7 +104,6 @@
         <p class="total-row">Total: <span id="qual_total"></span>% <span id="qual_status"></span></p>
 
         <h3>Presentation Quality Weights <small style="font-weight:normal;color:#777">(must total 100%)</small></h3>
-        <p class="hint" style="margin-top:0">Controls how each Ch.3 dimension contributes to the <strong>Presentation Score</strong>.</p>
 
         <label>Formatting &amp; Visuals (%)</label>
         <div class="field-row">

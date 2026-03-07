@@ -38,6 +38,46 @@
         .rank-badge { display: inline-flex; align-items: center; justify-content: center;
                       background: #2563eb; color: white; border-radius: 50%;
                       width: 30px; height: 30px; font-weight: bold; font-size: 0.95em; }
+
+        /* Hover tooltip */
+        .hoverable { position: relative; cursor: default; display: inline-block; }
+        .hoverable .score-num { text-decoration: underline dotted #aaa; text-underline-offset: 3px; }
+        .hover-detail {
+            display: none;
+            position: absolute;
+            z-index: 100;
+            background: white;
+            border: 1px solid #e5e7eb;
+            border-radius: 8px;
+            padding: 10px 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+            min-width: 230px;
+            left: 50%;
+            transform: translateX(-50%);
+            top: calc(100% + 6px);
+            text-align: left;
+            white-space: normal;
+        }
+        .hoverable:hover .hover-detail { display: block; }
+        /* Caret arrow */
+        .hover-detail::before {
+            content: '';
+            position: absolute;
+            top: -6px; left: 50%;
+            transform: translateX(-50%);
+            border-width: 0 6px 6px;
+            border-style: solid;
+            border-color: transparent transparent #e5e7eb;
+        }
+        .hover-detail::after {
+            content: '';
+            position: absolute;
+            top: -5px; left: 50%;
+            transform: translateX(-50%);
+            border-width: 0 5px 5px;
+            border-style: solid;
+            border-color: transparent transparent white;
+        }
     </style>
 </head>
 <body>
@@ -92,50 +132,59 @@
 
             {{-- QUALIFICATIONS SCORE --}}
             <td class="score-cell">
-                <span class="score-num">{{ $r['qualifications_score'] }}</span><span class="score-denom">/100</span>
-                <span class="score-label">Qualifications</span>
+                <div class="hoverable">
+                    <span class="score-num">{{ $r['qualifications_score'] }}</span><span class="score-denom">/100</span>
 
-                @if(!empty($r['feedback']))
-                    <div class="score-divider"></div>
-                    <ul class="fb">
-                        @foreach($r['feedback'] as $f)
-                            <li class="fb-qual">{{ $f }}</li>
-                        @endforeach
-                    </ul>
-                @endif
+                    <div class="hover-detail">
+                        @if(!empty($r['feedback']))
+                            <ul class="fb" style="margin-top:0">
+                                @foreach($r['feedback'] as $f)
+                                    <li class="fb-qual">{{ $f }}</li>
+                                @endforeach
+                            </ul>
+                        @else
+                            <span style="font-size:0.82em;color:#16a34a">✓ No qualification issues</span>
+                        @endif
+                    </div>
+                </div>
             </td>
 
             {{-- PRESENTATION SCORE --}}
             <td class="score-cell">
-                <span class="score-num">{{ $r['presentation_score'] }}</span><span class="score-denom">/100</span>
-                <span class="score-label">Presentation Quality</span>
+                <div class="hoverable">
+                    <span class="score-num">{{ $r['presentation_score'] }}</span><span class="score-denom">/100</span>
 
-                <div class="score-divider"></div>
-                <div class="breakdown">
-                    @foreach([
-                        'Formatting'   => $r['formatting_score'],
-                        'Language'     => $r['language_score'],
-                        'Conciseness'  => $r['concise_score'],
-                        'Organization' => $r['organization_score'],
-                    ] as $label => $val)
-                    <div class="bar-row">
-                        <span class="bar-label">{{ $label }}</span>
-                        <div class="bar-bg"><div class="bar-fill" style="width:{{ $val }}%"></div></div>
-                        <span class="bar-val">{{ $val }}</span>
-                    </div>
-                    @endforeach
-                </div>
-
-                @if(!empty($r['layout_feedback']))
-                    <div class="score-divider"></div>
-                    <ul class="fb">
-                        @foreach($r['layout_feedback'] as $tips)
-                            @foreach($tips as $tip)
-                                <li class="fb-pres">{{ $tip }}</li>
+                    <div class="hover-detail">
+                        <div class="breakdown">
+                            @foreach([
+                                'Formatting'   => $r['formatting_score'],
+                                'Language'     => $r['language_score'],
+                                'Conciseness'  => $r['concise_score'],
+                                'Organization' => $r['organization_score'],
+                            ] as $label => $val)
+                            <div class="bar-row">
+                                <span class="bar-label">{{ $label }}</span>
+                                <div class="bar-bg"><div class="bar-fill" style="width:{{ $val }}%"></div></div>
+                                <span class="bar-val">{{ $val }}</span>
+                            </div>
                             @endforeach
-                        @endforeach
-                    </ul>
-                @endif
+                        </div>
+
+                        @if(!empty($r['layout_feedback']))
+                            <div class="score-divider"></div>
+                            <ul class="fb" style="margin-top:0">
+                                @foreach($r['layout_feedback'] as $tips)
+                                    @foreach($tips as $tip)
+                                        <li class="fb-pres">{{ $tip }}</li>
+                                    @endforeach
+                                @endforeach
+                            </ul>
+                        @else
+                            <div class="score-divider"></div>
+                            <span style="font-size:0.82em;color:#16a34a">✓ No presentation issues</span>
+                        @endif
+                    </div>
+                </div>
             </td>
 
             {{-- DETAILS --}}
