@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+{{-- <!DOCTYPE html>
 <html>
 <head><title>Dashboard</title></head>
 <body style="padding:20px">
@@ -37,4 +37,4 @@
         @endforeach
     </table>
 </body>
-</html>
+</html> --}}
