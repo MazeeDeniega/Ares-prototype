@@ -13,101 +13,97 @@ class PreferenceController extends Controller
     public function edit()
     {
         $pref = Auth::user()->preference;
-        
+
         if (!$pref) {
             $pref = Preference::create([
-                'user_id' => Auth::id(),
-                'skills_weight' => 35,
-                'experience_weight' => 20,
-                'education_weight' => 25,
-                'cert_weight' => 10,
-                'keyword_weight' => 40,
-                'semantic_weight' => 60,
-                'layout_weight' => 0,
-                'pref_formatting' => false,
-                'pref_language' => false,
-                'pref_conciseness' => false,
-                'pref_organization' => false,
+                'user_id'             => Auth::id(),
+                'keyword_weight'      => 40,
+                'semantic_weight'     => 60,
+                'skills_weight'       => 35,
+                'experience_weight'   => 20,
+                'education_weight'    => 25,
+                'cert_weight'         => 10,
+                'layout_weight'       => 0,
+                'formatting_weight'   => 25,
+                'language_weight'     => 25,
+                'concise_weight'      => 25,
+                'organization_weight' => 25,
             ]);
         }
-        
+
         return view('preferences.edit', compact('pref'));
     }
 
     public function update(Request $request)
     {
-        $totalScoring = ($request->keyword_weight ?? 0) + ($request->semantic_weight ?? 0);
-
         $request->validate([
-            'keyword_weight' => 'required|integer|min:0|max:100',
-            'semantic_weight' => 'required|integer|min:0|max:100',
-            'layout_weight' => 'required|integer|min:0|max:100',
-            'pref_formatting' => 'nullable|boolean',
-            'pref_language' => 'nullable|boolean',
-            'pref_conciseness' => 'nullable|boolean',
-            'pref_organization' => 'nullable|boolean',
+            'keyword_weight'      => 'required|integer|min:0|max:100',
+            'semantic_weight'     => 'required|integer|min:0|max:100',
+            'skills_weight'       => 'required|integer|min:0|max:100',
+            'experience_weight'   => 'required|integer|min:0|max:100',
+            'education_weight'    => 'required|integer|min:0|max:100',
+            'cert_weight'         => 'required|integer|min:0|max:100',
+            'layout_weight'       => 'nullable|integer|min:0|max:100',
+            'formatting_weight'   => 'required|integer|min:0|max:100',
+            'language_weight'     => 'required|integer|min:0|max:100',
+            'concise_weight'      => 'required|integer|min:0|max:100',
+            'organization_weight' => 'required|integer|min:0|max:100',
         ]);
 
-        if ($totalScoring != 100) {
-            return back()->withErrors(['Keyword + Semantic must equal 100%']);
+        if (($request->keyword_weight + $request->semantic_weight) !== 100) {
+            return back()->withErrors(['Keyword + Semantic weights must equal 100%.']);
         }
 
-        // Convert checkbox values to boolean
-        $request->merge([
-            'pref_formatting' => (bool) $request->pref_formatting,
-            'pref_language' => (bool) $request->pref_language,
-            'pref_conciseness' => (bool) $request->pref_conciseness,
-            'pref_organization' => (bool) $request->pref_organization,
-        ]);
-
-        // Validate max 2 layout categories
-        $selected = collect([
-            $request->pref_formatting,
-            $request->pref_language,
-            $request->pref_conciseness,
-            $request->pref_organization,
-        ])->filter()->count();
-
-        if ($selected > 2) {
-            return back()->withErrors(['You can select a maximum of 2 layout categories.']);
+        $qualTotal = $request->skills_weight + $request->experience_weight
+                   + $request->education_weight + $request->cert_weight;
+        if ($qualTotal !== 100) {
+            return back()->withErrors(['Skills + Experience + Education + Certification weights must equal 100%.']);
         }
 
-        $pref = Auth::user()->preference;
-        
-        if (!$pref) {
-            $pref = Preference::create(['user_id' => Auth::id()]);
+        $presTotal = $request->formatting_weight + $request->language_weight
+                   + $request->concise_weight + $request->organization_weight;
+        if ($presTotal !== 100) {
+            return back()->withErrors(['Formatting + Language + Conciseness + Organization weights must equal 100%.']);
         }
-        
-        $pref->update($request->all());
-        return redirect('/dashboard')->with('success', 'Preferences saved!');
+
+        $pref = Auth::user()->preference
+            ?? Preference::create(['user_id' => Auth::id()]);
+
+        $pref->update($request->only([
+            'keyword_weight', 'semantic_weight',
+            'skills_weight', 'experience_weight', 'education_weight', 'cert_weight',
+            'layout_weight',
+            'formatting_weight', 'language_weight', 'concise_weight', 'organization_weight',
+        ]));
+
+        return redirect('/recruiter')->with('success', 'Default preferences saved!');
     }
 
-    // Job-specific preferences
     public function editJobPreference($jobId)
     {
         $job = Job::findOrFail($jobId);
         if ($job->user_id != Auth::id()) abort(403);
 
         $pref = JobPreference::where('job_id', $jobId)->first();
-        
+
         if (!$pref) {
             $userPref = Auth::user()->preference;
             $pref = JobPreference::create([
-                'job_id' => $jobId,
-                'keyword_weight' => $userPref->keyword_weight ?? 40,
-                'semantic_weight' => $userPref->semantic_weight ?? 60,
-                'skills_weight' => $userPref->skills_weight ?? 35,
-                'experience_weight' => $userPref->experience_weight ?? 20,
-                'education_weight' => $userPref->education_weight ?? 25,
-                'cert_weight' => $userPref->cert_weight ?? 10,
-                'layout_weight' => $userPref->layout_weight ?? 10,
-                'pref_formatting' => false,
-                'pref_language' => false,
-                'pref_conciseness' => false,
-                'pref_organization' => false,
+                'job_id'              => $jobId,
+                'keyword_weight'      => $userPref->keyword_weight      ?? 40,
+                'semantic_weight'     => $userPref->semantic_weight     ?? 60,
+                'skills_weight'       => $userPref->skills_weight       ?? 35,
+                'experience_weight'   => $userPref->experience_weight   ?? 20,
+                'education_weight'    => $userPref->education_weight    ?? 25,
+                'cert_weight'         => $userPref->cert_weight         ?? 10,
+                'layout_weight'       => $userPref->layout_weight       ?? 0,
+                'formatting_weight'   => $userPref->formatting_weight   ?? 25,
+                'language_weight'     => $userPref->language_weight     ?? 25,
+                'concise_weight'      => $userPref->concise_weight      ?? 25,
+                'organization_weight' => $userPref->organization_weight ?? 25,
             ]);
         }
-        
+
         return view('preferences.job', compact('pref', 'job'));
     }
 
@@ -116,53 +112,46 @@ class PreferenceController extends Controller
         $job = Job::findOrFail($jobId);
         if ($job->user_id != Auth::id()) abort(403);
 
-        $totalScoring = ($request->keyword_weight ?? 0) + ($request->semantic_weight ?? 0);
-
         $request->validate([
-            'keyword_weight' => 'required|integer|min:0|max:100',
-            'semantic_weight' => 'required|integer|min:0|max:100',
-            'layout_weight' => 'required|integer|min:0|max:100',
-            'pref_formatting' => 'nullable|boolean',
-            'pref_language' => 'nullable|boolean',
-            'pref_conciseness' => 'nullable|boolean',
-            'pref_organization' => 'nullable|boolean',
+            'keyword_weight'      => 'required|integer|min:0|max:100',
+            'semantic_weight'     => 'required|integer|min:0|max:100',
+            'skills_weight'       => 'required|integer|min:0|max:100',
+            'experience_weight'   => 'required|integer|min:0|max:100',
+            'education_weight'    => 'required|integer|min:0|max:100',
+            'cert_weight'         => 'required|integer|min:0|max:100',
+            'layout_weight'       => 'nullable|integer|min:0|max:100',
+            'formatting_weight'   => 'required|integer|min:0|max:100',
+            'language_weight'     => 'required|integer|min:0|max:100',
+            'concise_weight'      => 'required|integer|min:0|max:100',
+            'organization_weight' => 'required|integer|min:0|max:100',
         ]);
 
-        if ($totalScoring != 100) {
-            return back()->withErrors(['Keyword + Semantic must equal 100%']);
+        if (($request->keyword_weight + $request->semantic_weight) !== 100) {
+            return back()->withErrors(['Keyword + Semantic weights must equal 100%.']);
         }
 
-        // Convert checkbox values to boolean
-        $request->merge([
-            'pref_formatting' => (bool) $request->pref_formatting,
-            'pref_language' => (bool) $request->pref_language,
-            'pref_conciseness' => (bool) $request->pref_conciseness,
-            'pref_organization' => (bool) $request->pref_organization,
-        ]);
+        $qualTotal = $request->skills_weight + $request->experience_weight
+                   + $request->education_weight + $request->cert_weight;
+        if ($qualTotal !== 100) {
+            return back()->withErrors(['Skills + Experience + Education + Certification weights must equal 100%.']);
+        }
 
-        // Validate max 2 layout categories
-        $selected = collect([
-            $request->pref_formatting,
-            $request->pref_language,
-            $request->pref_conciseness,
-            $request->pref_organization,
-        ])->filter()->count();
-
-        if ($selected > 2) {
-            return back()->withErrors(['You can select a maximum of 2 layout categories.']);
+        $presTotal = $request->formatting_weight + $request->language_weight
+                   + $request->concise_weight + $request->organization_weight;
+        if ($presTotal !== 100) {
+            return back()->withErrors(['Formatting + Language + Conciseness + Organization weights must equal 100%.']);
         }
 
         JobPreference::updateOrCreate(
             ['job_id' => $jobId],
-            $request->all()
+            $request->only([
+                'keyword_weight', 'semantic_weight',
+                'skills_weight', 'experience_weight', 'education_weight', 'cert_weight',
+                'layout_weight',
+                'formatting_weight', 'language_weight', 'concise_weight', 'organization_weight',
+            ])
         );
-        
-        //debugging
-        //  dd([
-        // 'saved_data' => $request->all(),
-        // 'pref_after_save' => JobPreference::where('job_id', $jobId)->first(),  
-        // ]);
 
-        return redirect('/dashboard')->with('success', 'Job preferences saved!');
+        return redirect('/recruiter')->with('success', 'Job preferences saved!');
     }
 }

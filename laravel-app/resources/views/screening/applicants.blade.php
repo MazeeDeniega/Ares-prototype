@@ -2,17 +2,17 @@
 <html>
 <head><title>Screening - {{ $job->title }}</title></head>
 <body style="padding:20px">
-    <p><a href="/dashboard">&larr; Back to Dashboard</a></p>
+    <p><a href="/recruiter">&larr; Back to Dashboard</a></p>
     <h2>Applicants for: {{ $job->title }}</h2>
-    
+
     <hr>
-    
+
     @if($job->applications->count() > 0)
         <form method="POST" action="/screening/{{ $job->id }}/evaluate">
             @csrf
             <button type="submit" style="padding:10px 20px; background:green; color:white;">Evaluate All Applicants</button>
         </form>
-        
+
         <h3>Applicant List ({{ $job->applications->count() }})</h3>
         <table border="1" cellpadding="5">
             <tr>
@@ -30,7 +30,7 @@
                 <td>{{ $app->status }}</td>
                 <td>
                     @if($app->resume_path)
-                        <a href="/storage/{{ $app->resume_path }}" target="_blank">View Resume</a>
+                        <a href="/files/{{ $app->id }}/resume" target="_blank">View Resume</a>
                     @else
                         No Resume
                     @endif
