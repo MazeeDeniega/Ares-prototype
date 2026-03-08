@@ -125,9 +125,10 @@ export default function DashboardRecruiter() {
               <th>Action</th>
             </tr>
           </thead>
-          <tbody className='table-body'>
+          <tbody className='table-body-rec'>
             {jobs.map((job) => (
               <tr
+                className="table-row-rec"
                 key={job.id}
                 onClick={() => (window.location.href = `/screening/${job.id}`)}
               >
