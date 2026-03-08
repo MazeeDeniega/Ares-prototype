@@ -10,13 +10,14 @@ export default function DashboardRecruiter() {
   const [flash, setFlash] = useState({ success: null, error: null });
   const [showModal, setShowModal] = useState(false)
   // const [error, setError] = useState('');
+  console.log(jobs);
 
   // add job 
   const handleAddJob = async (e) => {
     e.preventDefault();
     const form = e.target;
     
-    const response = await apiFetch("/jobs", {
+    const response = await fetch("/jobs", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
@@ -24,7 +25,7 @@ export default function DashboardRecruiter() {
       },
       body: JSON.stringify({ 
         title: form.title.value, 
-        description: form.desc.value }),
+        description: form.description.value }),
     });
 
     if (response.ok) {
@@ -44,7 +45,10 @@ export default function DashboardRecruiter() {
 
     const response = await fetch(`/jobs/${jobId}`, { 
       method: "DELETE",
-      headers: {'X-CSRF-TOKEN': csrf }
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-CSRF-TOKEN': csrf }
     });
 
     if (response.ok) {
@@ -67,6 +71,8 @@ export default function DashboardRecruiter() {
       <br />
       <div className="heading-rec-cont">
         <h3>Your Jobs</h3>
+        {flash.success && <p>{flash.success}</p>}
+        {flash.error && <p>{flash.error}</p>}
         <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>+ New Job</button>        
       </div>
 
@@ -78,24 +84,28 @@ export default function DashboardRecruiter() {
             <div className="modal-header">
             <h3>Add New Job</h3>
             <hr />
-            {flash.success && <p>{flash.success}</p>}
-            {flash.error && <p>{flash.error}</p>}
             </div>
 
             <div className="add-job-form">
-              
               <form onSubmit={handleAddJob}>
+                <div className="add-job-field">
                 <input
+                  name="title"
                   type="text"
                   placeholder="Job Title (e.g. Backend Dev)"
                   required
                 />
                 <textarea
+                  name="description"
                   placeholder="Job Description"
+                  rows={18}
                   required
                 />
-                <button type="submit">Save Job</button>
+                </div>
+                <div className="add-job-action-btn">
+                <button type="submit">Save</button>
                 <button type="button" onClick={() => setShowModal(false)}>Cancel</button>
+                </div>
               </form>
             </div>
           </div>

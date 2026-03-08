@@ -11,7 +11,8 @@
             name: "{{ Auth::user()->name }}",
             role: "{{ Auth::user()->role }}"
         },
-        jobs: @json($jobs->load('applications')),
+        // jobs: @json($jobs->load('applications')),
+        jobs: @json($jobs),
         csrf: "{{ csrf_token() }}"
     };
     </script>

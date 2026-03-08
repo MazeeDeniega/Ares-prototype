@@ -47,10 +47,40 @@
   max-width: 500px;
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  /* display: flex;
+  flex-direction: column; 
+  align-items: center; */
+  /* justify-content: flex-end; */
 }
 
-.modal-header {
+.modal-header, .add-job-form, .add-job-field{
   align-items: center;
   display: flex;
   flex-direction: column;
+}
+
+.add-job-field {
+  margin-bottom: 10px;
+  width: 350px;
+}
+
+.add-job-field input, .add-job-field textarea {
+  padding: 5px;
+  margin: 15px 0;
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid black;
+}
+
+.add-job-field input {
+  font-weight: bold;
+}
+
+.add-job-field textarea {
+  border: 2px solid black;
+  resize: none;
+}
+
+.add-job-action-btn {
+  margin-right: 10px;
 }
