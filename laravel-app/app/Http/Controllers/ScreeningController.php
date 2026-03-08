@@ -163,7 +163,7 @@ class ScreeningController extends Controller
                     ($layoutScore * 100 * $layoutWeight / 100);
 
                 // Add feedback
-                if ($skillScore < 0.5) $feedback[] = "Low job similarity";
+                if ($skillScore < 0.5) $feedback[] = "Low skill similarity";
                 if ($yearsExp < 2) $feedback[] = "Limited experience";
                 if ($certScore == 0) $feedback[] = "No certifications";
                 if (empty($feedback)) $feedback[] = "Good match";
