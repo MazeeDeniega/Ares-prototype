@@ -71,6 +71,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
 });
 
 // Serve React app for ALL routes 
-// Route::get('/{any}', function () {
-//     return view('welcome');
-// })->where('any', '.*');
+Route::get('/{any}', function () {
+    return view('welcome');
+})->where('any', '.*');

@@ -79,7 +79,7 @@ class PreferenceController extends Controller
         }
         
         $pref->update($request->all());
-        return redirect('/dashboard')->with('success', 'Preferences saved!');
+        return redirect('/recruiter')->with('success', 'Preferences saved!');
     }
 
     // Job-specific preferences
@@ -163,6 +163,6 @@ class PreferenceController extends Controller
         // 'pref_after_save' => JobPreference::where('job_id', $jobId)->first(),  
         // ]);
 
-        return redirect('/dashboard')->with('success', 'Job preferences saved!');
+        return redirect('/recruiter')->with('success', 'Job preferences saved!');
     }
 }
