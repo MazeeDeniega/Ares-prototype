@@ -2,7 +2,7 @@
 <html>
 <head><title>Job Preferences</title></head>
 <body style="padding:20px">
-    <p><a href="/dashboard">&larr; Back</a></p>
+    <p><a href="/recruiter">&larr; Back</a></p>
     <h2>Preferences for: {{ $job->title }}</h2>
     
     @if($errors->any())
