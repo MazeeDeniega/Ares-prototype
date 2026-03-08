@@ -25,7 +25,6 @@ try:
 except Exception:
     nlp = spacy.load("en_core_web_sm")
 
-
 def extract_name(text: str) -> str:
     doc = nlp(text)
     for ent in doc.ents:
@@ -92,6 +91,12 @@ SKILLS_TAXONOMY = {
     ],
 }
 
+WORD_BOUNDARY_SKILLS = {
+    'c', 'r', 'go', 'ui', 'ux', 'ai', 'ml', 'ui', 'api',
+    'sql', 'css', 'git', 'aws', 'gcp', 'tdd', 'oop', 'mvc',
+    'etl', 'nlp', 'dns', 'vpn', 'web', 'php', 'vue', 'c#',
+}
+
 SKILLS_FLAT = [skill for skills in SKILLS_TAXONOMY.values() for skill in skills]
 
 
@@ -139,28 +144,31 @@ ALIAS_MAP = {
     "networks":                  "network",
 }
 
-
 def normalize_text(text: str) -> str:
     text = text.lower()
     for alias, canonical in sorted(ALIAS_MAP.items(), key=lambda x: -len(x[0])):
-        text = text.replace(alias, canonical)
+        text = text.replace(str(re.search(str(alias), text)), canonical)
     return text
 
 
 # ---------------------------------------------------------------------------
 # SKILL MATCHING
 # ---------------------------------------------------------------------------
-def extract_skills_from_job(job_text: str) -> list:
-    return [s for s in SKILLS_FLAT if s in job_text]
+def _skill_in_text(skill: str, text: str) -> bool:
+    """
+    Match a skill against text.
+    Short/ambiguous skills use word boundaries; longer ones use substring.
+    """
+    if skill in WORD_BOUNDARY_SKILLS or len(skill) <= 3:
+        return bool(re.search(r'\b' + re.escape(skill) + r'\b', text))
+    return skill in text
 
+def extract_skills_from_job(job_text: str) -> list:
+    return [s for s in SKILLS_FLAT if _skill_in_text(s, job_text)]
 
 def match_skills(resume_text: str, job_text: str) -> list:
-    """
-    Return skills present in both resume and job description.
-    Falls back to all taxonomy skills when no job description is provided.
-    """
     job_skills = extract_skills_from_job(job_text) if job_text.strip() else SKILLS_FLAT
-    return [s for s in job_skills if s in resume_text]
+    return [s for s in job_skills if _skill_in_text(s, resume_text)]
 
 
 # ---------------------------------------------------------------------------
@@ -199,10 +207,6 @@ def compute_semantic_similarity(resume_text: str, job_text: str) -> float:
 
 # ---------------------------------------------------------------------------
 # LAYOUT / PRESENTATION ANALYSIS
-# FIX: accepts page_count and presentation_weights as optional args so both
-#      the /analyze route (3 args) and debug_routes (2 args) work correctly.
-# FIX: returns 'concise_score' (not 'conciseness_score') and 'presentation_score'
-#      as expected by debug_routes._score_resume.
 # ---------------------------------------------------------------------------
 def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -> dict:
     """
@@ -230,20 +234,20 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
     if blank_ratio >= 0.10:
         formatting_score += 0.30
     else:
-        feedback.setdefault("formatting", []).append("Add spacing between sections for visual clarity.")
+        feedback.setdefault("formatting", []).append("Resume lacks spacing between sections, reducing visual clarity.")
 
     special_chars = len(re.findall(r'[█▓▒░▄▀■□◆◇★☆]', text_raw))
     if special_chars == 0:
         formatting_score += 0.25
     else:
-        feedback.setdefault("formatting", []).append("Avoid decorative symbols; keep formatting clean and plain.")
+        feedback.setdefault("formatting", []).append("Resume contains decorative symbols that may affect readability.")
 
     if bullet_lines:
         bullet_symbols = set(l.strip()[0] for l in bullet_lines if l.strip())
         if len(bullet_symbols) <= 2:
             formatting_score += 0.20
         else:
-            feedback.setdefault("formatting", []).append("Use a consistent bullet style throughout.")
+            feedback.setdefault("formatting", []).append("Resume uses inconsistent bullet styles throughout.")
     else:
         formatting_score += 0.20
 
@@ -253,9 +257,7 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
     if has_email or has_phone:
         formatting_score += 0.25
     else:
-        feedback.setdefault("formatting", []).append(
-            "Include contact details (email and phone) near the top of your resume."
-        )
+        feedback.setdefault("formatting", []).append("No contact details (email or phone) detected near the top of the resume.")
 
     formatting_score = round(min(formatting_score, 1), 3)
 
@@ -275,28 +277,25 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
     elif len(found_action_verbs) >= 2:
         language_score += 0.2
     else:
-        feedback.setdefault("language", []).append("Include more action verbs (e.g. managed, developed, led).")
+        feedback.setdefault("language", []).append("Resume lacks action verbs; limited evidence of initiative or ownership.")
 
     informal_markers = ['i am', "i'm", "i've", "i'll", 'gonna', 'wanna', 'kinda',
                         'lol', 'btw', 'etc etc', 'stuff', 'things', 'lots of']
     if sum(1 for m in informal_markers if m in text) == 0:
         language_score += 0.35
     else:
-        feedback.setdefault("language", []).append("Use formal language; avoid casual phrasing.")
+        feedback.setdefault("language", []).append("Resume contains informal or casual language, which may affect professionalism.")
 
     content_lines = [l.strip() for l in lines if len(l.strip().split()) > 2]
     long_lines    = sum(1 for l in content_lines if len(l.split()) > 35)
     if long_lines == 0 and content_lines:
         language_score += 0.25
     else:
-        feedback.setdefault("language", []).append(
-            "Avoid overly long run-on descriptions; keep bullet points concise."
-        )
+        feedback.setdefault("language", []).append("Resume contains overly long bullet points that may be difficult to scan.")
 
     language_score = round(min(language_score, 1), 3)
 
     # 3. CONCISENESS
-    # NOTE: key is 'concise_score' — matches what debug_routes expects.
     concise_score = 0
 
     if page_count is not None:
@@ -304,28 +303,26 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
             concise_score += 0.5
         elif page_count == 2:
             concise_score += 0.3
-            feedback.setdefault("concise", []).append("Resume is 2 pages; aim for a single page where possible.")
+            feedback.setdefault("concise", []).append("Resume is 2 pages; a single page is preferred for most roles.")
         else:
-            feedback.setdefault("concise", []).append(
-                f"Resume is {page_count} pages; condense to 1–2 pages for most roles."
-            )
+            feedback.setdefault("concise", []).append(f"Resume is {page_count} pages; recommended length is 1–2 pages.")
     else:
         if word_count < 100:
-            feedback.setdefault("concise", []).append("Resume may be too sparse; add more relevant detail.")
+            feedback.setdefault("concise", []).append("Resume appears sparse; candidate may lack sufficient detail to evaluate.")
         elif word_count <= 400:
             concise_score += 0.5
         elif word_count <= 550:
             concise_score += 0.3
-            feedback.setdefault("concise", []).append("Resume may be long; aim for one page where possible.")
+            feedback.setdefault("concise", []).append("Resume may be too long; a single page is preferred for most roles.")
         else:
-            feedback.setdefault("concise", []).append("Resume is too long; consider trimming to one page.")
+            feedback.setdefault("concise", []).append("Resume is too long; consider requesting a condensed version.")
 
     current_year = datetime.datetime.now().year
     recent_years = [str(y) for y in range(current_year - 10, current_year + 1)]
     if any(yr in text_raw for yr in recent_years):
         concise_score += 0.3
     else:
-        feedback.setdefault("concise", []).append("Include dates to show recency of experience and education.")
+        feedback.setdefault("concise", []).append("No recent dates detected; recency of experience and education is unclear.")
 
     word_freq    = {}
     for w in words:
@@ -334,7 +331,7 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
     if not [w for w, c in word_freq.items() if c > 8]:
         concise_score += 0.2
     else:
-        feedback.setdefault("concise", []).append("Reduce repeated words to keep content relevant and varied.")
+        feedback.setdefault("concise", []).append("Resume contains heavily repeated words, suggesting limited content variety.")
 
     concise_score = round(min(concise_score, 1), 3)
 
@@ -366,20 +363,14 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         organization_score += 0.4
     elif section_hits >= 1:
         organization_score += 0.2
-        feedback.setdefault("organization", []).append(
-            "Include clearly labelled sections (e.g. Experience, Education, Skills)."
-        )
+        feedback.setdefault("organization", []).append("Resume has few clearly labelled sections; structure may be hard to follow.")
     else:
-        feedback.setdefault("organization", []).append(
-            "Missing key sections — add Experience, Education, and Skills headings."
-        )
+        feedback.setdefault("organization", []).append("Resume is missing key sections (Experience, Education, Skills).")
 
     if len(heading_lines) >= 2:
         organization_score += 0.25
     else:
-        feedback.setdefault("organization", []).append(
-            "Use short, standalone headings to separate sections clearly."
-        )
+        feedback.setdefault("organization", []).append("Resume lacks standalone section headings, making it harder to navigate.")
 
     indented_lines = [
         l for l in lines if l and (
@@ -389,9 +380,7 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
     if len(indented_lines) >= 3:
         organization_score += 0.2
     else:
-        feedback.setdefault("organization", []).append(
-            "Indent bullet points to create a clear visual hierarchy."
-        )
+        feedback.setdefault("organization", []).append("Resume has little indentation or bullet structure; visual hierarchy is weak.")
 
     years_found = re.findall(r'\b(20\d{2}|19\d{2})\b', text_raw)
     years_int   = list(map(int, years_found))
@@ -402,9 +391,7 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         if descending_pairs / max(len(years_int) - 1, 1) >= 0.6:
             organization_score += 0.15
         else:
-            feedback.setdefault("organization", []).append(
-                "Order experience entries from most recent to oldest."
-            )
+            feedback.setdefault("organization", []).append("Experience entries do not appear to follow reverse-chronological order.")
 
     organization_score = round(min(organization_score, 1), 3)
 
@@ -427,7 +414,7 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         "presentation_score":  presentation_score,
         "formatting_score":    formatting_score,
         "language_score":      language_score,
-        "concise_score":       concise_score,       # FIX: was 'conciseness_score'
+        "concise_score":       concise_score,      
         "organization_score":  organization_score,
         "layout_feedback":     feedback,
     }

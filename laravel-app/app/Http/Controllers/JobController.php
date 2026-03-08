@@ -10,7 +10,7 @@ class JobController extends Controller {
     {
         $request->validate(['title' => 'required', 'description' => 'required']);
         Auth::user()->jobs()->create($request->all());
-        return redirect('/dashboard')->with('success', 'Job created!');
+        return redirect('/recruiter')->with('success', 'Job created!');
     }
     
     public function destroy($id) 

@@ -106,6 +106,34 @@ def _extract_debug_meta(resume_raw: str, page_count) -> dict:
     }
 
 
+def _tfidf_top_terms(resume: str, job: str, n: int = 10) -> list:
+    """Return top overlapping TF-IDF terms between resume and job as [{term, score}]."""
+    try:
+        from sklearn.feature_extraction.text import TfidfVectorizer
+        import numpy as np
+        vec = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, stop_words='english')
+        mat = vec.fit_transform([resume, job])
+        names  = vec.get_feature_names_out()
+        r_vec  = mat[0].toarray()[0]
+        j_vec  = mat[1].toarray()[0]
+        # Only terms present in both
+        both   = np.minimum(r_vec, j_vec)
+        top_idx = both.argsort()[::-1][:n]
+        return [
+            {'term': names[i], 'score': round(float(both[i]), 4)}
+            for i in top_idx if both[i] > 0
+        ]
+    except Exception:
+        return []
+
+
+def _sem_interpretation(score: float) -> str:
+    if score >= 0.75: return 'Very Strong'
+    if score >= 0.55: return 'Strong'
+    if score >= 0.35: return 'Moderate'
+    return 'Weak'
+
+
 def _score_resume(resume_raw: str, job_raw: str, page_count,
                   kw: int = 40, sem: int = 60) -> dict:
     m = _core()
@@ -119,6 +147,25 @@ def _score_resume(resume_raw: str, job_raw: str, page_count,
     combined       = round(
         (tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3
     )
+
+    # Step-by-step similarity breakdown for debug display
+    has_job = bool(job.strip())
+    tfidf_contrib  = round(tfidf_score    * kw  / total_blend, 4)
+    sem_contrib    = round(semantic_score * sem / total_blend, 4)
+    sim_steps = {
+        'has_job':          has_job,
+        'tfidf_raw':        round(tfidf_score,    4),
+        'tfidf_weight':     kw,
+        'tfidf_contrib':    tfidf_contrib,
+        'semantic_raw':     round(semantic_score, 4),
+        'semantic_weight':  sem,
+        'semantic_contrib': sem_contrib,
+        'combined':         combined,
+        'semantic_label':   _sem_interpretation(semantic_score) if has_job else '—',
+        'top_terms':        _tfidf_top_terms(resume, job) if has_job else [],
+        'resume_word_count': len(resume.split()),
+        'job_word_count':    len(job.split()) if has_job else 0,
+    }
 
     matched_skills       = m.match_skills(resume, job)
     job_skills_extracted = m.extract_skills_from_job(job) if job.strip() else []
@@ -153,6 +200,7 @@ def _score_resume(resume_raw: str, job_raw: str, page_count,
         'tfidf_similarity':     tfidf_score,
         'semantic_similarity':  semantic_score,
         'combined_similarity':  combined,
+        'sim_steps':            sim_steps,
         'matched_skills':       matched_skills,
         'skill_gap':            skill_gap,
         'job_skills_extracted': job_skills_extracted,
@@ -257,13 +305,36 @@ _SHARED_CSS = '''
                  letter-spacing:0; }
   .norm-toggle:hover { text-decoration:underline; }
   .norm-text   { display:none; background:#1e1e1e; color:#d4d4d4; font-family:monospace;
-                 font-size:0.76em; padding:10px; border-radius:6px; white-space:pre-wrap;
-                 max-height:220px; overflow-y:auto; margin-top:8px; }
+                 font-size:0.92em; line-height:1.6; padding:14px; border-radius:6px;
+                 white-space:pre-wrap; max-height:320px; overflow-y:auto; margin-top:8px; }
 
   /* Extracted text (PDF page) */
-  .extracted   { background:#1e1e1e; color:#d4d4d4; font-family:monospace; font-size:0.76em;
-                 padding:12px; border-radius:6px; white-space:pre-wrap;
-                 max-height:300px; overflow-y:auto; margin-top:8px; }
+  .extracted   { background:#1e1e1e; color:#d4d4d4; font-family:monospace; font-size:0.92em;
+                 line-height:1.6; padding:14px; border-radius:6px; white-space:pre-wrap;
+                 max-height:360px; overflow-y:auto; margin-top:8px; }
+
+  /* Similarity step-by-step */
+  .sim-steps   { background:#f8faff; border:1px solid #e0e7ff; border-radius:6px;
+                 padding:10px 12px; margin-top:8px; font-size:0.81em; }
+  .sim-steps .step { display:flex; justify-content:space-between; align-items:baseline;
+                     padding:3px 0; border-bottom:1px dashed #e5e7eb; color:#374151; }
+  .sim-steps .step:last-child { border-bottom:none; }
+  .sim-steps .step-val { font-weight:bold; color:#2563eb; }
+  .sim-steps .step-label { color:#6b7280; font-size:0.95em; }
+  .sim-steps .step-head { font-weight:bold; color:#111; font-size:0.9em;
+                          margin-bottom:4px; padding-bottom:4px;
+                          border-bottom:2px solid #e0e7ff; }
+  .sem-label   { display:inline-block; padding:2px 8px; border-radius:10px;
+                 font-size:0.78em; font-weight:bold; margin-left:6px; }
+  .sem-vstrong { background:#f0fdf4; color:#15803d; border:1px solid #bbf7d0; }
+  .sem-strong  { background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe; }
+  .sem-moderate{ background:#fffbeb; color:#b45309; border:1px solid #fde68a; }
+  .sem-weak    { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+  .top-terms   { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
+  .term-tag    { background:#f0f4ff; color:#3b4fd4; border:1px solid #c7d2fe;
+                 padding:2px 7px; border-radius:10px; font-size:0.76em;
+                 display:inline-flex; align-items:center; gap:4px; }
+  .term-tag .tw { color:#9ca3af; font-size:0.9em; }
 
   /* Button / status */
   textarea  { width:100%; border:1px solid #d1d5db; border-radius:6px; padding:10px;
@@ -338,6 +409,39 @@ function renderResults(d, hasJob) {
     bar('tfidf', d.tfidf_similarity,  true);
     bar('sem',   d.semantic_similarity, true);
     if (el('v-sb-sim')) el('v-sb-sim').textContent = d.score_breakdown?.similarity ?? '—';
+
+    // Step-by-step breakdown
+    const ss = d.sim_steps || {};
+    const pct4 = v => v !== undefined ? (v * 100).toFixed(1) + '%' : '—';
+
+    if (el('v-res-wc'))       el('v-res-wc').textContent       = ss.resume_word_count ?? '—';
+    if (el('v-job-wc'))       el('v-job-wc').textContent       = ss.job_word_count    ?? '—';
+    if (el('v-tfidf-raw'))    el('v-tfidf-raw').textContent    = pct4(ss.tfidf_raw);
+    if (el('v-tfidf-w'))      el('v-tfidf-w').textContent      = (ss.tfidf_weight ?? '—') + '%';
+    if (el('v-tfidf-contrib'))el('v-tfidf-contrib').textContent= pct4(ss.tfidf_contrib);
+    if (el('v-sem-raw'))      el('v-sem-raw').textContent      = pct4(ss.semantic_raw);
+    if (el('v-sem-w'))        el('v-sem-w').textContent        = (ss.semantic_weight ?? '—') + '% weight';
+    if (el('v-sem-contrib'))  el('v-sem-contrib').textContent  = pct4(ss.semantic_contrib);
+    if (el('v-comb-final'))   el('v-comb-final').textContent   = pct4(ss.combined);
+
+    // Semantic interpretation label
+    const semLbl = el('v-sem-label');
+    if (semLbl && ss.semantic_label) {
+      const cls = {'Very Strong':'sem-vstrong','Strong':'sem-strong',
+                   'Moderate':'sem-moderate','Weak':'sem-weak'}[ss.semantic_label] || 'sem-weak';
+      semLbl.innerHTML = `<span class="sem-label ${cls}">${ss.semantic_label}</span>`;
+    }
+
+    // Top overlapping TF-IDF terms
+    const termsEl = el('v-top-terms');
+    if (termsEl) {
+      const terms = ss.top_terms || [];
+      termsEl.innerHTML = terms.length
+        ? terms.map(t =>
+            `<span class="term-tag">${t.term} <span class="tw">${(t.score*100).toFixed(1)}</span></span>`
+          ).join('')
+        : '<span style="color:#9ca3af;font-size:0.85em">No overlapping terms found</span>';
+    }
   }
 
   tags('v-skills',    d.matched_skills       || [], 'tag-blue', 'None matched');
@@ -473,6 +577,55 @@ def _qual_panel_html():
           Matched Skills <span id="v-skills-count" style="font-weight:normal;color:#9ca3af"></span>
         </div>
         <div class="tags" id="v-skills"></div>
+
+        <!-- Similarity step-by-step breakdown -->
+        <div class="sim-steps" id="sim-steps-block">
+          <div class="step-head">Score Breakdown</div>
+          <div class="step">
+            <span>Resume word count</span>
+            <span class="step-val" id="v-res-wc">—</span>
+          </div>
+          <div class="step">
+            <span>Job description word count</span>
+            <span class="step-val" id="v-job-wc">—</span>
+          </div>
+
+          <div class="step-head" style="margin-top:8px">TF-IDF (Keyword)</div>
+          <div class="step">
+            <span>Raw cosine similarity</span>
+            <span class="step-val" id="v-tfidf-raw">—</span>
+          </div>
+          <div class="step">
+            <span>Weight applied</span>
+            <span class="step-val" id="v-tfidf-w">—</span>
+          </div>
+          <div class="step">
+            <span>Contribution to match score</span>
+            <span class="step-val" id="v-tfidf-contrib">—</span>
+          </div>
+          <div style="margin-top:6px;font-size:0.88em;color:#6b7280">Top overlapping terms:</div>
+          <div class="top-terms" id="v-top-terms"></div>
+
+          <div class="step-head" style="margin-top:8px">Semantic (Sentence Embedding)</div>
+          <div class="step">
+            <span>Raw cosine similarity</span>
+            <span class="step-val" id="v-sem-raw">—</span>
+          </div>
+          <div class="step">
+            <span>Interpretation <span id="v-sem-label"></span></span>
+            <span class="step-val" id="v-sem-w">— weight</span>
+          </div>
+          <div class="step">
+            <span>Contribution to match score</span>
+            <span class="step-val" id="v-sem-contrib">—</span>
+          </div>
+
+          <div class="step-head" style="margin-top:8px">Final</div>
+          <div class="step" style="font-weight:bold">
+            <span>Combined match score</span>
+            <span class="step-val" id="v-comb-final">—</span>
+          </div>
+        </div>
 
         <!-- Skill gap -->
         <div id="gap-wrap">
