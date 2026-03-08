@@ -1,14 +1,13 @@
-html {
-  background-color: #4BA3C3;
-  height: 100vh;
-} 
-
+html, body {
+  margin: 0;
+  padding: 0;
+}
 .login-main-cont {
+  background-color: #4BA3C3;
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  flex-direction: column;
 }
 
 .login-inner-cont {

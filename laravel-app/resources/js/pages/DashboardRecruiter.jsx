@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import './styles/dashboardadmin.css';
 import NavBar from "../components/NavBar";
 
 export default function DashboardRecruiter() {
