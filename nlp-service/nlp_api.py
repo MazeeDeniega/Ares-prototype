@@ -260,8 +260,6 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         feedback.setdefault("formatting", []).append("No contact details (email or phone) detected near the top of the resume.")
 
     formatting_score = round(min(formatting_score, 1), 3)
-
-    # 2. LANGUAGE QUALITY
     language_score = 0
 
     action_verbs = [
@@ -466,8 +464,8 @@ def analyze():
     presentation_weights = data.get('presentation_weights', {})
     layout_data          = classify_layout(resume_raw, page_count, presentation_weights)
 
-    candidate_name = extract_name(resume_raw)
-
+    
+    # Return JSON response
     return jsonify({
         "candidate_name":      candidate_name,
         "matched_skills":      matched_skills,
@@ -484,6 +482,11 @@ def analyze():
         "organization_score":  layout_data["organization_score"],
         "layout_feedback":     layout_data["layout_feedback"],
     })
+
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({"status": "healthy", "version": "1.0.0"})
 
 
 if __name__ == '__main__':
