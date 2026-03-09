@@ -13,70 +13,51 @@
         th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
         th { background: #f2f2f2; white-space: nowrap; }
 
-        /* Score columns */
-        .score-cell { text-align: center; min-width: 140px; }
-        .score-num  { font-size: 1.6em; font-weight: bold; line-height: 1; }
+        .score-cell { text-align: center; min-width: 150px; }
+        .score-num   { font-size: 1.8em; font-weight: bold; line-height: 1; }
         .score-denom { font-size: 0.9em; color: #888; }
-        .score-label { font-size: 0.75em; color: #555; margin-top: 3px; display: block; }
         .score-divider { border-top: 1px solid #eee; margin: 8px 0; }
 
-        /* Progress bars for sub-scores */
         .breakdown { font-size: 0.78em; text-align: left; }
         .bar-row { display: flex; align-items: center; gap: 5px; margin: 3px 0; }
-        .bar-label { width: 88px; color: #444; white-space: nowrap; }
+        .bar-label { width: 96px; color: #444; white-space: nowrap; }
         .bar-bg  { flex: 1; background: #e5e7eb; border-radius: 3px; height: 7px; }
-        .bar-fill { height: 7px; border-radius: 3px; background: #2563eb; }
-        .bar-val { width: 32px; text-align: right; color: #555; }
+        .bar-fill-blue   { height: 7px; border-radius: 3px; background: #2563eb; }
+        .bar-fill-purple { height: 7px; border-radius: 3px; background: #7c3aed; }
+        .bar-val { width: 36px; text-align: right; color: #555; }
 
-        /* Feedback */
+        .sub-header { font-size: 0.72em; font-weight: bold; color: #6b7280;
+                      text-transform: uppercase; letter-spacing: 0.05em; margin: 8px 0 4px; }
+
         ul.fb { margin: 6px 0 0; padding-left: 14px; font-size: 0.8em; }
         ul.fb li { margin: 2px 0; }
         .fb-qual { color: #92400e; }
-        .fb-pres { color: #1e40af; }
+        .fb-pres { color: #5b21b6; }
 
         .docs a { display: block; margin: 3px 0; font-size: 0.85em; color: #2563eb; }
         .rank-badge { display: inline-flex; align-items: center; justify-content: center;
                       background: #2563eb; color: white; border-radius: 50%;
                       width: 30px; height: 30px; font-weight: bold; font-size: 0.95em; }
 
-        /* Hover tooltip */
         .hoverable { position: relative; cursor: default; display: inline-block; }
         .hoverable .score-num { text-decoration: underline dotted #aaa; text-underline-offset: 3px; }
         .hover-detail {
-            display: none;
-            position: absolute;
-            z-index: 100;
-            background: white;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
-            padding: 10px 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.12);
-            min-width: 230px;
-            left: 50%;
-            transform: translateX(-50%);
-            top: calc(100% + 6px);
-            text-align: left;
-            white-space: normal;
+            display: none; position: absolute; z-index: 100;
+            background: white; border: 1px solid #e5e7eb; border-radius: 8px;
+            padding: 12px 14px; box-shadow: 0 4px 16px rgba(0,0,0,0.13);
+            min-width: 260px; left: 50%; transform: translateX(-50%);
+            top: calc(100% + 6px); text-align: left; white-space: normal;
         }
         .hoverable:hover .hover-detail { display: block; }
-        /* Caret arrow */
         .hover-detail::before {
-            content: '';
-            position: absolute;
-            top: -6px; left: 50%;
-            transform: translateX(-50%);
-            border-width: 0 6px 6px;
-            border-style: solid;
-            border-color: transparent transparent #e5e7eb;
+            content: ''; position: absolute; top: -6px; left: 50%;
+            transform: translateX(-50%); border-width: 0 6px 6px;
+            border-style: solid; border-color: transparent transparent #e5e7eb;
         }
         .hover-detail::after {
-            content: '';
-            position: absolute;
-            top: -5px; left: 50%;
-            transform: translateX(-50%);
-            border-width: 0 5px 5px;
-            border-style: solid;
-            border-color: transparent transparent white;
+            content: ''; position: absolute; top: -5px; left: 50%;
+            transform: translateX(-50%); border-width: 0 5px 5px;
+            border-style: solid; border-color: transparent transparent white;
         }
     </style>
 </head>
@@ -85,17 +66,25 @@
     <h2>Ranking Results — {{ $job->title }}</h2>
 
     <div class="pref-bar">
-        <strong>Active weights &mdash; Qualifications:</strong>
-        Match {{ $pref->skills_weight ?? 35 }}% &middot;
+        <strong>Final Score:</strong>
+        Qualifications {{ $pref->qual_weight ?? 100 }}% &middot;
+        Presentation {{ $pref->pres_weight ?? 0 }}%
+        &ensp;|&ensp;
+        <strong>Qualifications:</strong>
+        Skills {{ $pref->skills_weight ?? 35 }}% &middot;
         Experience {{ $pref->experience_weight ?? 20 }}% &middot;
         Education {{ $pref->education_weight ?? 25 }}% &middot;
         Cert {{ $pref->cert_weight ?? 10 }}%
         &ensp;|&ensp;
         <strong>Presentation:</strong>
-        Formatting {{ $pref->formatting_weight ?? 25 }}% &middot;
-        Language {{ $pref->language_weight ?? 25 }}% &middot;
-        Conciseness {{ $pref->concise_weight ?? 25 }}% &middot;
-        Organization {{ $pref->organization_weight ?? 25 }}%
+        @php
+            $presLabels = [];
+            if (($pref->formatting_weight   ?? 0) > 0) $presLabels[] = 'Formatting '   . ($pref->formatting_weight)   . '%';
+            if (($pref->language_weight     ?? 0) > 0) $presLabels[] = 'Language '     . ($pref->language_weight)     . '%';
+            if (($pref->concise_weight      ?? 0) > 0) $presLabels[] = 'Conciseness '  . ($pref->concise_weight)      . '%';
+            if (($pref->organization_weight ?? 0) > 0) $presLabels[] = 'Organization ' . ($pref->organization_weight) . '%';
+        @endphp
+        {{ implode(' · ', $presLabels) ?: 'all equal (25% each)' }}
         &ensp;|&ensp;
         <a href="/jobs/{{ $job->id }}/preferences">Edit preferences</a>
     </div>
@@ -106,8 +95,7 @@
                 <th>Rank</th>
                 <th>Candidate</th>
                 <th>Contact</th>
-                <th>Qualifications<br><small style="font-weight:normal">out of 100</small></th>
-                <th>Presentation<br><small style="font-weight:normal">out of 100</small></th>
+                <th>Final Score<br><small style="font-weight:normal">out of 100</small></th>
                 <th>Details</th>
                 <th>Documents</th>
             </tr>
@@ -130,59 +118,69 @@
                 {{ $r['city'] ?? '' }}{{ ($r['city'] && $r['province']) ? ', ' : '' }}{{ $r['province'] ?? '' }}
             </td>
 
-            {{-- QUALIFICATIONS SCORE --}}
+            {{-- FINAL SCORE — hover reveals qual + presentation breakdown --}}
             <td class="score-cell">
                 <div class="hoverable">
-                    <span class="score-num">{{ $r['qualifications_score'] }}</span><span class="score-denom">/100</span>
+                    <span class="score-num">{{ $r['final_score'] }}</span><span class="score-denom">/100</span>
 
                     <div class="hover-detail">
+
+                        {{-- Qualifications --}}
+                        <div class="sub-header">Qualifications — {{ $r['qualifications_score'] }}/100
+                            <span style="font-weight:normal;color:#9ca3af">(×{{ $pref->qual_weight ?? 100 }}%)</span>
+                        </div>
+                        <div class="breakdown">
+                            @foreach([
+                                'Skills'      => $r['qualifications_score'],
+                                'Experience'  => min(($r['experience'] / 5) * 100, 100),
+                            ] as $label => $val)
+                            <div class="bar-row">
+                                <span class="bar-label">{{ $label }}</span>
+                                <div class="bar-bg"><div class="bar-fill-blue" style="width:{{ $val }}%"></div></div>
+                                <span class="bar-val">{{ round($val) }}</span>
+                            </div>
+                            @endforeach
+                        </div>
                         @if(!empty($r['feedback']))
-                            <ul class="fb" style="margin-top:0">
+                            <ul class="fb">
                                 @foreach($r['feedback'] as $f)
                                     <li class="fb-qual">{{ $f }}</li>
                                 @endforeach
                             </ul>
-                        @else
-                            <span style="font-size:0.82em;color:#16a34a">✓ No qualification issues</span>
                         @endif
-                    </div>
-                </div>
-            </td>
 
-            {{-- PRESENTATION SCORE --}}
-            <td class="score-cell">
-                <div class="hoverable">
-                    <span class="score-num">{{ $r['presentation_score'] }}</span><span class="score-denom">/100</span>
+                        <div class="score-divider"></div>
 
-                    <div class="hover-detail">
+                        {{-- Presentation --}}
+                        <div class="sub-header">Presentation — {{ $r['presentation_score'] }}/100
+                            <span style="font-weight:normal;color:#9ca3af">(×{{ $pref->pres_weight ?? 0 }}%)</span>
+                        </div>
                         <div class="breakdown">
                             @foreach([
-                                'Formatting'   => $r['formatting_score'],
-                                'Language'     => $r['language_score'],
-                                'Conciseness'  => $r['concise_score'],
-                                'Organization' => $r['organization_score'],
-                            ] as $label => $val)
+                                'Formatting'   => ['val' => $r['formatting_score'],   'w' => $pref->formatting_weight   ?? 25],
+                                'Language'     => ['val' => $r['language_score'],     'w' => $pref->language_weight     ?? 25],
+                                'Conciseness'  => ['val' => $r['concise_score'],      'w' => $pref->concise_weight      ?? 25],
+                                'Organization' => ['val' => $r['organization_score'], 'w' => $pref->organization_weight ?? 25],
+                            ] as $label => $item)
+                            @if($item['w'] > 0)
                             <div class="bar-row">
                                 <span class="bar-label">{{ $label }}</span>
-                                <div class="bar-bg"><div class="bar-fill" style="width:{{ $val }}%"></div></div>
-                                <span class="bar-val">{{ $val }}</span>
+                                <div class="bar-bg"><div class="bar-fill-purple" style="width:{{ $item['val'] }}%"></div></div>
+                                <span class="bar-val">{{ $item['val'] }}</span>
                             </div>
+                            @endif
                             @endforeach
                         </div>
-
                         @if(!empty($r['layout_feedback']))
-                            <div class="score-divider"></div>
-                            <ul class="fb" style="margin-top:0">
+                            <ul class="fb" style="margin-top:4px">
                                 @foreach($r['layout_feedback'] as $tips)
                                     @foreach($tips as $tip)
                                         <li class="fb-pres">{{ $tip }}</li>
                                     @endforeach
                                 @endforeach
                             </ul>
-                        @else
-                            <div class="score-divider"></div>
-                            <span style="font-size:0.82em;color:#16a34a">✓ No presentation issues</span>
                         @endif
+
                     </div>
                 </div>
             </td>

@@ -467,7 +467,6 @@ def analyze():
     
     # Return JSON response
     return jsonify({
-        "candidate_name":      candidate_name,
         "matched_skills":      matched_skills,
         "years_experience":    years_exp,
         "tfidf_similarity":    tfidf_score,
