@@ -218,7 +218,6 @@ class ScreeningController extends Controller
 
                 // --------------------------------------------------------
                 // FINAL SCORE (0–100)
-                // qual_weight + pres_weight = 100
                 // --------------------------------------------------------
                 $qualW = $pref->qual_weight;
                 $presW = $pref->pres_weight;

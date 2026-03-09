@@ -8,16 +8,13 @@
         .pref-bar { font-size: 0.83em; color: #555; background: #f8f8f8; border: 1px solid #e5e7eb;
                     padding: 8px 12px; border-radius: 6px; margin-bottom: 18px; }
         .pref-bar a { color: #2563eb; }
-
         table { border-collapse: collapse; width: 100%; }
         th, td { border: 1px solid #ddd; padding: 8px; vertical-align: top; }
         th { background: #f2f2f2; white-space: nowrap; }
-
         .score-cell { text-align: center; min-width: 150px; }
         .score-num   { font-size: 1.8em; font-weight: bold; line-height: 1; }
         .score-denom { font-size: 0.9em; color: #888; }
         .score-divider { border-top: 1px solid #eee; margin: 8px 0; }
-
         .breakdown { font-size: 0.78em; text-align: left; }
         .bar-row { display: flex; align-items: center; gap: 5px; margin: 3px 0; }
         .bar-label { width: 96px; color: #444; white-space: nowrap; }
@@ -25,20 +22,16 @@
         .bar-fill-blue   { height: 7px; border-radius: 3px; background: #2563eb; }
         .bar-fill-purple { height: 7px; border-radius: 3px; background: #7c3aed; }
         .bar-val { width: 36px; text-align: right; color: #555; }
-
         .sub-header { font-size: 0.72em; font-weight: bold; color: #6b7280;
                       text-transform: uppercase; letter-spacing: 0.05em; margin: 8px 0 4px; }
-
-        ul.fb { margin: 6px 0 0; padding-left: 14px; font-size: 0.8em; }
+        ul.fb { margin: 4px 0 0; padding-left: 14px; font-size: 0.8em; }
         ul.fb li { margin: 2px 0; }
         .fb-qual { color: #92400e; }
         .fb-pres { color: #5b21b6; }
-
         .docs a { display: block; margin: 3px 0; font-size: 0.85em; color: #2563eb; }
         .rank-badge { display: inline-flex; align-items: center; justify-content: center;
                       background: #2563eb; color: white; border-radius: 50%;
                       width: 30px; height: 30px; font-weight: bold; font-size: 0.95em; }
-
         .hoverable { position: relative; cursor: default; display: inline-block; }
         .hoverable .score-num { text-decoration: underline dotted #aaa; text-underline-offset: 3px; }
         .hover-detail {
@@ -79,10 +72,10 @@
         <strong>Presentation:</strong>
         @php
             $presLabels = [];
-            if (($pref->formatting_weight   ?? 0) > 0) $presLabels[] = 'Formatting '   . ($pref->formatting_weight)   . '%';
-            if (($pref->language_weight     ?? 0) > 0) $presLabels[] = 'Language '     . ($pref->language_weight)     . '%';
-            if (($pref->concise_weight      ?? 0) > 0) $presLabels[] = 'Conciseness '  . ($pref->concise_weight)      . '%';
-            if (($pref->organization_weight ?? 0) > 0) $presLabels[] = 'Organization ' . ($pref->organization_weight) . '%';
+            if (($pref->formatting_weight   ?? 0) > 0) $presLabels[] = 'Formatting '   . $pref->formatting_weight   . '%';
+            if (($pref->language_weight     ?? 0) > 0) $presLabels[] = 'Language '     . $pref->language_weight     . '%';
+            if (($pref->concise_weight      ?? 0) > 0) $presLabels[] = 'Conciseness '  . $pref->concise_weight      . '%';
+            if (($pref->organization_weight ?? 0) > 0) $presLabels[] = 'Organization ' . $pref->organization_weight . '%';
         @endphp
         {{ implode(' · ', $presLabels) ?: 'all equal (25% each)' }}
         &ensp;|&ensp;
@@ -118,7 +111,7 @@
                 {{ $r['city'] ?? '' }}{{ ($r['city'] && $r['province']) ? ', ' : '' }}{{ $r['province'] ?? '' }}
             </td>
 
-            {{-- FINAL SCORE — hover reveals qual + presentation breakdown --}}
+            {{-- FINAL SCORE — hover reveals full breakdown --}}
             <td class="score-cell">
                 <div class="hoverable">
                     <span class="score-num">{{ $r['final_score'] }}</span><span class="score-denom">/100</span>
@@ -126,7 +119,8 @@
                     <div class="hover-detail">
 
                         {{-- Qualifications --}}
-                        <div class="sub-header">Qualifications — {{ $r['qualifications_score'] }}/100
+                        <div class="sub-header">
+                            Qualifications — {{ $r['qualifications_score'] }}/100
                             <span style="font-weight:normal;color:#9ca3af">(×{{ $pref->qual_weight ?? 100 }}%)</span>
                         </div>
                         <div class="breakdown">
@@ -152,7 +146,8 @@
                         <div class="score-divider"></div>
 
                         {{-- Presentation --}}
-                        <div class="sub-header">Presentation — {{ $r['presentation_score'] }}/100
+                        <div class="sub-header">
+                            Presentation — {{ $r['presentation_score'] }}/100
                             <span style="font-weight:normal;color:#9ca3af">(×{{ $pref->pres_weight ?? 0 }}%)</span>
                         </div>
                         <div class="breakdown">
