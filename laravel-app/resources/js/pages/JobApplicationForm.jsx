@@ -1,5 +1,5 @@
 import { useState } from "react";
-import "./JobApplicationForm.css";
+import "./styles/JobApplicationForm.css";
 
 const API_URL = "/api/applications"; //  Laravel endpoint?
 
