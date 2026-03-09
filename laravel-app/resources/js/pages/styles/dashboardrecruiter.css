@@ -19,10 +19,6 @@
   cursor: pointer;
 }
 
-.table-cont {
-  
-}
-
 .table-row-rec:hover {
   cursor: pointer;
   background-color: #00000027;
@@ -43,6 +39,7 @@
   cursor: pointer;
 }
 
+/* Modal css */
 .modal-main-cont {
   position: fixed; 
   top: 0;
@@ -98,6 +95,21 @@
   resize: none;
 }
 
-.add-job-action-btn {
-  margin-right: 10px;
+.modal-action-btn {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.save-job-btn, .cancel-btn {
+  margin-right: 5px;
+  padding: 8px;
+}
+
+.save-job-btn {
+  background-color: #4BA3C3;
+}
+
+.cancel-btn {
+  background-color: white;
+  border: solid 2px #4BA3C3;
 }

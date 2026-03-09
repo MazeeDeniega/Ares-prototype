@@ -112,9 +112,9 @@ export default function DashboardRecruiter() {
                   required
                 />
                 </div>
-                <div className="add-job-action-btn">
-                <button type="submit">Save</button>
-                <button type="button" onClick={() => setShowModal(false)}>Cancel</button>
+                <div className="modal-action-btn">
+                  <button className="save-job-btn" type="submit">Save</button>
+                  <button className="cancel-btn" type="button" onClick={() => setShowModal(false)}>Cancel</button>
                 </div>
               </form>
             </div>
