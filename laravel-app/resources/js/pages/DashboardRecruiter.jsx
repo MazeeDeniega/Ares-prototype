@@ -55,21 +55,21 @@ export default function DashboardRecruiter() {
   const handleDelete = async (jobId) => {
     if (!confirm("Delete this job?")) return;
 
-    const response = await fetch(`/jobs/${jobId}`, { 
+    await fetch(`/jobs/${jobId}`, { 
       method: "DELETE",
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-        'X-CSRF-TOKEN': csrf }
+      headers: { 'X-CSRF-TOKEN': csrf }
     });
-
-    if (response.ok) {
-      setJobs(jobs.filter(job => job.id !== jobId));
-      setFlash({ success: "Job deleted.", error: null });
-      console.log("Job deleted");
-    } else {
-      setFlash({ success: null, error: "Failed to delete job." });
-    }
+      window.location.reload(); // Jobs only get updated after reloading, need fix
+      
+    // if (response.ok) {
+    //   setJobs(jobs.filter(job => job.id !== jobId));
+      
+    //   setFlash({ success: "Job deleted.", error: null });
+    //   console.log("Job deleted");
+    // } else {
+    //   setFlash({ success: null, error: "Failed to delete job." });
+    //   console.log("Failed to delte job");
+    // }
   };
 
   const trunc = (text, length = 50) =>
