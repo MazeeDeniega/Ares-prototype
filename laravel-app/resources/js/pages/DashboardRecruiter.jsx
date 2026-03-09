@@ -83,8 +83,7 @@ export default function DashboardRecruiter() {
       <br />
       <div className="heading-rec-cont">
         <h3>Your Jobs</h3>
-        
-        <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>+ New Job</button>        
+         
       </div>
 
       {/* ── modal to add job ── */}
@@ -127,8 +126,15 @@ export default function DashboardRecruiter() {
 
       {/* ── jobs table ── */}
       <div className="table-cont">
-      {flash.success && <p style={{color: 'green'}}>{flash.success}</p>}
-      {flash.error && <p style={{color: 'red'}}>{flash.error}</p>}
+        <div className="table-top">
+          <div className="flash-message">
+            {flash.success && <p style={{color: 'green'}}>{flash.success}</p>}
+            {flash.error && <p style={{color: 'red'}}>{flash.error}</p>}
+          </div>
+          <div className="add-job-btn">
+            <button type="button" onClick={() => setShowModal(true)}>+ New Job</button> 
+          </div>
+        </div>
         <table className='table-main'>
           <thead>
             <tr className="table-heading">
@@ -150,7 +156,7 @@ export default function DashboardRecruiter() {
                   {trunc(job.description)}
                 </td>
                 <td>{job.applications_count ?? job.applications?.length ?? 0}</td>
-                 <td className='action-btns' onClick={(e) => e.stopPropagation()}>  
+                <td className='action-btns' onClick={(e) => e.stopPropagation()}>  
                   <a  href={`/jobs/${job.id}/preferences`}><button className="edit-pref-btn" type="button"> 
                     Preference {/* Don't forget to use <Link> Tag  */}
                   </button></a>
