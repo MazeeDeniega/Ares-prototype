@@ -28,15 +28,27 @@ export default function DashboardRecruiter() {
         description: form.description.value }),
     });
 
-    if (response.ok) {
-      const newJob = await response.json();
-      setJobs([...jobs, newJob]);
-      form.reset();
-      setFlash({ success: "Job added successfully.", error: null });
+    if (response.ok || response.redirected) {
+      window.location.reload(); // Jobs only get updated after reloading, need fix
+      console.log('job added');
     } else {
-      const data = await response.json();
-      setFlash({ success: null, error: data.message || "Failed to add job." });
+      console.log("Failed to add job");
     }
+
+    // if (response.ok || response.redirected) {
+    //   const updated = await fetch('/jobs', {
+    //     headers: { 'Accept': 'applicantion/json' }
+    //   });
+    //   const data = await updated.json();
+    //   // const newJob = await response.json();
+    //   setJobs(data);
+    //   form.reset();
+    //   setFlash({ success: "Job added successfully.", error: null });
+    // } else {
+    //   const data = await response.json();
+    //   setFlash({ success: null, error: data.message || "Failed to add job." });
+    //   console.log({ success: null, error: data.message })
+    
   };
 
   // delete job
@@ -71,8 +83,7 @@ export default function DashboardRecruiter() {
       <br />
       <div className="heading-rec-cont">
         <h3>Your Jobs</h3>
-        {flash.success && <p>{flash.success}</p>}
-        {flash.error && <p>{flash.error}</p>}
+        
         <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>+ New Job</button>        
       </div>
 
@@ -116,6 +127,8 @@ export default function DashboardRecruiter() {
 
       {/* ── jobs table ── */}
       <div className="table-cont">
+      {flash.success && <p style={{color: 'green'}}>{flash.success}</p>}
+      {flash.error && <p style={{color: 'red'}}>{flash.error}</p>}
         <table className='table-main'>
           <thead>
             <tr className="table-heading">
