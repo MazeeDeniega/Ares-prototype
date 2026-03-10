@@ -6,12 +6,12 @@ export default function JobList() {
   const { user, jobs } = window.__LARAVEL__ ?? {};
   const [jobList] = useState(jobs ?? []);
 
-  const truncate = (text, length = 100) =>
+  const truncate = (text, length = 200) =>
       text.length > length ? text.slice(0, length) + '...' : text;
 
   return (
     <>
-    <div>
+    <div className='job-list-body'>
       {user ? (
           <NavBar />
       ) : (
@@ -24,12 +24,21 @@ export default function JobList() {
 
       {jobList.length > 0 ? (
         jobList.map(job => (
-          <div key={job.id} style={{ border: '1px solid #ccc', padding: 10, margin: '10px 0' }}>
-            <h3>{job.title}</h3>
-            <p><strong>Posted by:</strong> {job.user?.name ?? 'Unknown'}</p>
-            <p>{truncate(job.description)}</p>
-            <a href={`/jobs/${job.id}`}>View Details</a> |{' '}
-            <a href={`/apply/${job.id}`}>Apply Now</a>
+          <div className="job-list" key={job.id}>
+
+            <div className="job-list-header">
+              <h3><a href={`/jobs/${job.id}`}>{job.title}</a></h3>
+              <p><strong>Posted by:</strong> {job.user?.name ?? 'Unknown'}</p>
+            </div>
+
+            <div className="job-list-desc">
+              <p>{truncate(job.description)}</p>
+            </div>
+
+            <div className="job-list-action-btn">
+              <a href={`/apply/${job.id}`}>Apply Now</a>
+            </div>
+
           </div>
         ))
       ) : (
