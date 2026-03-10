@@ -66,7 +66,7 @@ export default function Register() {
     <div className="login-main-cont">
       <div className="login-inner-cont">
         <div className="login-header">
-          <h2>Register</h2>
+          <h2>Register to ARES</h2>
         </div>
         
 
