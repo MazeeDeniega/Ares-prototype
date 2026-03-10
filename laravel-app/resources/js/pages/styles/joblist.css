@@ -1,13 +1,18 @@
 html, body {
   margin: 0;
   padding: 0;
-  background-color: rgba(127, 130, 139, 0.103);
+  background-color: rgba(168, 176, 255, 0.103);
 }
 
 .job-list-main-cont {
   display: flex;
   flex-direction: column;
   margin: 10px 100px;
+}
+
+.job-list-main-cont h2 {
+  font-weight: bolder;
+  font-size: 1.88rem;
 }
 
 .job-list {
@@ -22,4 +27,17 @@ html, body {
 .job-list-header h3 {
   font-weight: bolder;
   font-size: 1.5rem;
+}
+
+.job-list-action-btn {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.apply-btn {
+  padding: 8px;
+  border: 2px solid black;
+  background-color: #4d71d4;
+  color: white;
+  cursor: pointer;
 }

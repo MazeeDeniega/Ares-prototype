@@ -21,6 +21,7 @@ export default function JobList() {
       )}
     <div className="job-list-main-cont">
       <h2>Available Jobs</h2>
+      <hr style={{width: '100%', border: 'solid 1px'}}/>
 
       {jobList.length > 0 ? (
         jobList.map(job => (
@@ -36,7 +37,7 @@ export default function JobList() {
             </div>
 
             <div className="job-list-action-btn">
-              <a href={`/apply/${job.id}`}>Apply Now</a>
+              <a href={`/apply/${job.id}`}><button className="apply-btn" type='button'>Apply Now</button></a>
             </div>
 
           </div>
