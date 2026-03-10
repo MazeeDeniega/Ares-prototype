@@ -35,24 +35,27 @@ export default function Login() {
     <>
     <div className="login-main-cont">
       <div className="login-inner-cont">
-        <h2>Welcome to ARES!</h2>
+        <div className="login-header">
+          <h2>Welcome to ARES!</h2>
+        </div>
 
         {error && <p style={{ color: 'red' }}>{error}</p>}
 
         <div className="login-form">
           <form onSubmit={handleSubmit}>
+            <div className="login-form-body">
+              <div className="input-section">
+                <label>Email: </label>
+                <input type="text" name="email" placeholder="Enter your email" required />
+              </div>
 
-            <div className="input-section">
-              <label>Email: </label>
-              <input type="text" name="email" placeholder="name@example.com" required />
+              <div className="input-section">
+                <label>Password: </label>
+                <input type="password" name="password" placeholder="Enter your password" required />
+              </div>
+              <button className='login-btn' type="submit">Login</button>
             </div>
 
-            <div className="input-section">
-              <label>Password: </label>
-              <input type="password" name="password" placeholder="" required />
-            </div>
-
-            <button className='login-btn' type="submit">Login</button>
           </form>
         </div>
         
