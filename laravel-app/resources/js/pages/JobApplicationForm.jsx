@@ -1,34 +1,36 @@
 import { useState } from "react";
-import "./styles/JobApplicationForm.css";
+import "./styles/jobapplicationform.css";
 
-const API_URL = "/api/applications"; //  Laravel endpoint?
+// const API_URL = "/api/applications"; //  Laravel endpoint?
 
-const initialForm = {
-  first_name: "",
-  last_name: "",
-  email: "",
-  contact_number: "",
-  city: "",
-  province: "",
-  postal_code: "",
-  country: "",
-  desired_pay: "50000",
-  engagement_type: "",
-  date_available: "",
-  highest_education: "",
-  college_university: "",
-  referred_by: "",
-  references: "",
-  tor_path: null,
-  cert_path: null,
-};
+// const initialForm = {
+//   first_name: "",
+//   last_name: "",
+//   email: "",
+//   contact_number: "",
+//   city: "",
+//   province: "",
+//   postal_code: "",
+//   country: "",
+//   desired_pay: "50000",
+//   engagement_type: "",
+//   date_available: "",
+//   highest_education: "",
+//   college_university: "",
+//   referred_by: "",
+//   references: "",
+//   tor_path: null,
+//   cert_path: null,
+// };
 
 export default function JobApplicationForm() {
-  const [form, setForm] = useState(initialForm);
+  const { csrf, job, flash } = window.__LARAVEL__ ?? {};
+  const [error, setError] = useState('');
+  // const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null); // { type: 'success'|'error', message }
 
-  const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
+  // const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
 
   const salaryMin = 10000, salaryMax = 200000;
   const salaryNum = parseInt(form.desired_pay) || salaryMin;
@@ -99,6 +101,7 @@ export default function JobApplicationForm() {
               {status.message}
             </div>
           )}
+          <form>
 
           {/* Personal Details */}
           <div className="section">
@@ -273,6 +276,7 @@ export default function JobApplicationForm() {
           <button className="submit-btn" onClick={handleSubmit} disabled={loading}>
             {loading ? "Submitting…" : "Submit Application"}
           </button>
+          </form>
         </div>
       </div>
     </div>

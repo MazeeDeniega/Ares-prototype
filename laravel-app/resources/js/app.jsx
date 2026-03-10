@@ -6,6 +6,7 @@ import Register from './pages/Register';
 import DashboardAdmin from './pages/DashboardAdmin';
 import DashboardRecruiter from './pages/DashboardRecruiter';
 import JobList from './pages/JobList';
+import JobApplicationForm from './pages/JobApplicationForm';
 
 
 createRoot(document.getElementById('app')).render(
@@ -16,6 +17,7 @@ createRoot(document.getElementById('app')).render(
       <Route path="/admin" element={<DashboardAdmin />} />
       <Route path="/recruiter" element={<DashboardRecruiter />} />
       <Route path='/jobs' element={<JobList />} />
+      <Route path='/apply/:id' element={<JobApplicationForm />} />
       <Route path="*" element={<p>404 - Page not found</p>} />
     </Routes>
   </BrowserRouter>
