@@ -197,6 +197,12 @@ class PreferenceController extends Controller
                 $presWeights
             )
         );
+        
+        //debugging
+        //  dd([
+        // 'saved_data' => $request->all(),
+        // 'pref_after_save' => JobPreference::where('job_id', $jobId)->first(),  
+        // ]);
 
         return redirect('/recruiter')->with('success', 'Job preferences saved!');
     }

@@ -1,23 +1,35 @@
-html {
-  background-color: #4BA3C3;
-  height: 100vh;
-} 
-
+html, body {
+  margin: 0;
+  padding: 0;
+}
 .login-main-cont {
+  background: linear-gradient(#4BA3C3, #4d71d4);
   min-height: 100vh;
   display: flex;
   justify-content: center;
   align-items: center;
-  flex-direction: column;
 }
 
 .login-inner-cont {
   background-color: white;
-  padding: 24px;
   max-width: 400px;
   width: 100%;
   text-align: center;
-  border-radius: 12px;
+  border-radius: 8px;
+  box-shadow: 0 4px 28px rgba(57,67,183,0.10);
+}
+
+.login-header {
+  background-color: #4d71d4;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  color: white;
+  padding: 24px;
+  margin-bottom: 12px;
+}
+
+.login-form-body {
+  padding: 24px;
 }
 
 .input-section {
@@ -29,10 +41,11 @@ html {
 }
 
 .login-form input {
+  background-color: #4d71d41f;
   margin-top: 5px;
-  padding: 5px;
-  border: none;
-  border-bottom: 2px solid black;
+  padding: 8px 6px;
+  border-radius: 4px;
+  border: 1px solid #4d71d459;
 }
 
 /* This block is for register only */
@@ -47,18 +60,18 @@ select {
 }
 
 .login-btn {
-  background-color: #4BA3C3;
+  background-color: #4d71d4;
   color: white;
   font-size: 18px;
   border: none;
   border-radius: 8px;
   padding: 1rem 0;
-  margin: 10px 0;
+  margin: 10px 0 0 0;
   width: 100%;
   cursor: pointer;
 }
 
 .lower-section {
-  line-height: .5;
   font-size: smaller;
+  margin: 0 0 20px 0;
 }

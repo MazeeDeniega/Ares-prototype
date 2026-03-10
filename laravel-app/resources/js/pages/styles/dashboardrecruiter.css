@@ -1,0 +1,119 @@
+
+.heading-rec-cont {
+  font-size: 1.5rem;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.table-top {
+  display: flex;
+  /* align-items: center; */
+  justify-content: space-between;
+}
+
+.header-btn {
+  display: flex;
+  justify-content: flex-end;
+  padding: 5px;
+  cursor: pointer;
+}
+
+.add-job-btn {
+  border: solid 2px black;
+  background-color: #4BA3C3;
+}
+
+.table-row-rec:hover {
+  cursor: pointer;
+  background-color: #00000027;
+}
+
+.edit-pref-btn {
+  margin-right: 10px;
+  padding: 5px;
+  border: 2px solid #4BA3C3;
+  background-color: white;
+  cursor: pointer;
+}
+
+.delete-btn {
+  background-color: white;
+  border: solid 2px #4BA3C3;
+  padding: 5px;
+  cursor: pointer;
+}
+
+/* Modal css */
+.modal-main-cont {
+  position: fixed; 
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* z-index: 100; */
+}
+
+.modal-inner-cont {
+  background-color: white;
+  border-radius: 8px;
+  height: 500px;
+  width: 400px;
+  max-width: 500px;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  /* display: flex;
+  flex-direction: column; 
+  align-items: center; */
+  /* justify-content: flex-end; */
+}
+
+.modal-header, .add-job-form, .add-job-field{
+  align-items: center;
+  display: flex;
+  flex-direction: column;
+}
+
+.add-job-field {
+  margin-bottom: 10px;
+  width: 350px;
+}
+
+.add-job-field input, .add-job-field textarea {
+  padding: 5px;
+  margin: 15px 0;
+  width: 100%;
+  border: none;
+  border-bottom: 2px solid black;
+}
+
+.add-job-field input {
+  font-weight: bold;
+}
+
+.add-job-field textarea {
+  border: 2px solid black;
+  resize: none;
+}
+
+.modal-action-btn {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.save-job-btn, .cancel-btn {
+  margin-right: 5px;
+  padding: 8px;
+}
+
+.save-job-btn {
+  background-color: #4BA3C3;
+}
+
+.cancel-btn {
+  background-color: white;
+  border: solid 2px #4BA3C3;
+}

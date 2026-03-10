@@ -1,8 +1,23 @@
 <!DOCTYPE html>
 <html>
-<head><title>Dashboard</title></head>
+<head>
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx'])
+</head>
 <body style="padding:20px">
-    <h2>Recruiter Dashboard</h2>
+    <script>
+    window.__LARAVEL__ = {
+        user: {
+            name: "{{ Auth::user()->name }}",
+            role: "{{ Auth::user()->role }}"
+        },
+        // jobs: @json($jobs->load('applications')),
+        jobs: @json($jobs),
+        csrf: "{{ csrf_token() }}"
+    };
+    </script>
+    <div id="app"></div>
+    {{-- <h2>Recruiter Dashboard</h2>
     <p>Welcome, {{ Auth::user()->name }} | <a href="/preferences/edit">Preferences</a> | <form action="/logout" method="POST" style="display:inline">@csrf 
         <button type="submit">Logout</button></form></p>
 
@@ -35,6 +50,6 @@
             </td>
         </tr>
         @endforeach
-    </table>
+    </table> --}}
 </body>
 </html>

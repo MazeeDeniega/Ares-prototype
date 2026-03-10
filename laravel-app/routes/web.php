@@ -73,3 +73,8 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::delete('/users/{id}', [DashboardController::class, 'deleteUser']);
     Route::post('/users/{id}/role', [DashboardController::class, 'updateUserRole']);
 });
+
+// Serve React app for ALL routes 
+Route::get('/{any}', function () {
+    return view('welcome');
+})->where('any', '.*');

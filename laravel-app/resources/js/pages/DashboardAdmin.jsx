@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import NavBar from '../components/NavBar';
-import './styles/dashboardadmin.css';
+import './styles/dashboardrecruiter.css';
 
 export default function AdminDashboard() {
   const { user, csrf, flash } = window.__LARAVEL__;
@@ -53,9 +53,9 @@ export default function AdminDashboard() {
                     <option value="admin">Admin</option>
                   </select>
                 </td>
-                <td className='delete-btn'>
+                <td>
                   {u.role !== 'admin' && (
-                    <button onClick={() => deleteUser(u.id)}>Delete</button>
+                    <button className='delete-btn' onClick={() => deleteUser(u.id)}>Delete</button>
                   )}
                 </td>
               </tr>

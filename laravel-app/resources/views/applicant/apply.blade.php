@@ -2,7 +2,20 @@
 <html>
 <head><title>Apply for {{ $job->title }}</title></head>
 <body style="padding:20px">
-    <p><a href="/jobs">&larr; Back to Jobs</a></p>
+
+    <script>
+    window.__LARAVEL__ = {
+        csrf: "{{ csrf_token() }}",
+        job: @json($job->load('user')),
+        flash: {
+            success: "{{ session('success') }}"
+        }
+    };
+    </script>
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx'])
+    <div id="app"></div>
+    {{-- <p><a href="/jobs">&larr; Back to Jobs</a></p>
     <h2>Apply for: {{ $job->title }}</h2>
     <p><strong>Company:</strong> {{ $job->user->name }}</p>
     <hr>
@@ -83,6 +96,6 @@
         </select><br><br>
         
         <button type="submit">Submit Application</button>
-    </form>
+    </form> --}}
 </body>
 </html>
