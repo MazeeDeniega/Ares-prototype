@@ -20,26 +20,29 @@ export default function JobList() {
         </p>
       )}
     <div className="job-list-main-cont">
-      <h2>Available Jobs</h2>
-      <hr style={{width: '100%', border: 'solid 1px'}}/>
+      <div className="job-list-header">
+        <h2>Available Jobs</h2>
+      </div>
 
       {jobList.length > 0 ? (
         jobList.map(job => (
-          <div className="job-list" key={job.id}>
+          <div className="job-list-body">
+            <div className="job-list" key={job.id}>
 
-            <div className="job-list-header">
-              <h3><a href={`/jobs/${job.id}`}>{job.title}</a></h3>
-              <p><strong>Posted by:</strong> {job.user?.name ?? 'Unknown'}</p>
+              <div className="job-list-top">
+                <h3><a href={`/jobs/${job.id}`}>{job.title}</a></h3>
+                <p><strong>Posted by:</strong> {job.user?.name ?? 'Unknown'}</p>
+              </div>
+
+              <div className="job-list-desc">
+                <p>{truncate(job.description)}</p>
+              </div>
+
+              <div className="job-list-action-btn">
+                <a href={`/apply/${job.id}`}><button className="apply-btn" type='button'>Apply Now</button></a>
+              </div>
+
             </div>
-
-            <div className="job-list-desc">
-              <p>{truncate(job.description)}</p>
-            </div>
-
-            <div className="job-list-action-btn">
-              <a href={`/apply/${job.id}`}><button className="apply-btn" type='button'>Apply Now</button></a>
-            </div>
-
           </div>
         ))
       ) : (

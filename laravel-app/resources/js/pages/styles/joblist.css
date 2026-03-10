@@ -5,28 +5,64 @@ html, body {
 }
 
 .job-list-main-cont {
+  background-color: white;
+  border-radius: 8px;
   display: flex;
   flex-direction: column;
   margin: 10px 100px;
+  box-shadow: 0 4px 28px rgba(57,67,183,0.10);
 }
 
-.job-list-main-cont h2 {
+.job-list-header {
+  background-color: #4d71d4;
+  color: white;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
   font-weight: bolder;
-  font-size: 1.88rem;
+  font-size: 2rem;
+  margin: 0 auto;
+  padding: 20px 40px;
+  width: 100%;
+}
+
+.job-list-top a {
+  text-decoration: none;
+  font-weight: 900;
+}
+
+.job-list-top a:hover {
+  text-decoration: underline;
+}
+
+.job-list-body {
+  padding: 0px 40px;
 }
 
 .job-list {
-  padding: 10px 30px;
+  padding: 10px 30px 20px 30px;
   margin: 10px 0;
   display: flex;
   flex-direction: column;
-  border: 2px solid rgba(0, 0, 0, 0.521);
+  border-bottom: 2px solid #4d71d44d;
   background-color: white;
+  overflow: hidden;
 }
 
-.job-list-header h3 {
+.job-list-top h3 {
   font-weight: bolder;
   font-size: 1.5rem;
+}
+
+.job-list-top p {
+  font-size: .8rem;
+}
+
+.job-list-top h3, .job-list-top p {
+  margin: 4px;
+}
+
+.job-list-desc {
+  margin: 6px 10px;
 }
 
 .job-list-action-btn {
@@ -35,8 +71,9 @@ html, body {
 }
 
 .apply-btn {
-  padding: 8px;
-  border: 2px solid black;
+  padding: 10px;
+  border-radius: 6px;
+  border: none;
   background-color: #4d71d4;
   color: white;
   cursor: pointer;

@@ -61,10 +61,10 @@ body {
   z-index: 1;
 }
 
-.form-header h1 em {
+/* .form-header h1 em {
   font-style: normal;
   color: #a8b0f0;
-}
+} */
 
 .form-header p {
   margin-top: 8px;
