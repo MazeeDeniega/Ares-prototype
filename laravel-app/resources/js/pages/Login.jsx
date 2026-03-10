@@ -58,7 +58,7 @@ export default function Login() {
         
         <div className="lower-section">
           <p>Don't have an account? <Link to="/register">Register</Link></p>
-          <p><Link to="/jobs">Enter as a guest</Link></p>
+          <p><a href="/jobs">Enter as a guest</a></p>
         </div>
       </div>
     </div>

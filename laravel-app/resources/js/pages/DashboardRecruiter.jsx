@@ -131,8 +131,9 @@ export default function DashboardRecruiter() {
             {flash.success && <p style={{color: 'green'}}>{flash.success}</p>}
             {flash.error && <p style={{color: 'red'}}>{flash.error}</p>}
           </div>
-          <div className="add-job-btn">
-            <button type="button" onClick={() => setShowModal(true)}>+ New Job</button> 
+          <div className="header-btn">
+            <a href="/preferences/edit"><button className="edit-pref-btn" type="button">Default Preferences</button></a>
+            <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>+ New Job</button> 
           </div>
         </div>
         <table className='table-main'>

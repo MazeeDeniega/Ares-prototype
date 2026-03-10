@@ -7,16 +7,20 @@
 
 .table-top {
   display: flex;
-  align-items: center;
+  /* align-items: center; */
   justify-content: space-between;
 }
-.add-job-btn button {
+
+.header-btn {
   display: flex;
   justify-content: flex-end;
   padding: 5px;
+  cursor: pointer;
+}
+
+.add-job-btn {
   border: solid 2px black;
   background-color: #4BA3C3;
-  cursor: pointer;
 }
 
 .table-row-rec:hover {
