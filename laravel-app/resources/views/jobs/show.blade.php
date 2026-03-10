@@ -2,7 +2,25 @@
 <html>
 <head><title>{{ $job->title }}</title></head>
 <body style="padding:20px">
-    <p><a href="/jobs">&larr; Back to Jobs</a></p>
+    <script>
+    window.__LARAVEL__ = {
+        @auth
+        user: {
+            name: "{{ Auth::user()->name }}",
+            role: "{{ Auth::user()->role }}"
+        },
+        csrf: "{{ csrf_token() }}",
+        @else
+        user: null,
+        csrf: null,
+        @endauth
+        job: @json($job->load('user'))
+    };
+    </script>
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx'])
+    <div id="app"></div>
+    {{-- <p><a href="/jobs">&larr; Back to Jobs</a></p>
     
     <h2>{{ $job->title }}</h2>
     <p><strong>Recruiter:</strong> {{ $job->user->name }}</p>
@@ -16,6 +34,6 @@
         @endif
     @else
         <p><a href="/login">Login to Apply</a></p>
-    @endauth
+    @endauth --}}
 </body>
 </html>
