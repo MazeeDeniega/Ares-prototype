@@ -3,34 +3,33 @@ import "./styles/jobapplicationform.css";
 
 // const API_URL = "/api/applications"; //  Laravel endpoint?
 
-// const initialForm = {
-//   first_name: "",
-//   last_name: "",
-//   email: "",
-//   contact_number: "",
-//   city: "",
-//   province: "",
-//   postal_code: "",
-//   country: "",
-//   desired_pay: "50000",
-//   engagement_type: "",
-//   date_available: "",
-//   highest_education: "",
-//   college_university: "",
-//   referred_by: "",
-//   references: "",
-//   tor_path: null,
-//   cert_path: null,
-// };
+const initialForm = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  contact_number: "",
+  city: "",
+  province: "",
+  postal_code: "",
+  country: "",
+  desired_pay: "50000",
+  engagement_type: "",
+  date_available: "",
+  highest_education: "",
+  college_university: "",
+  referred_by: "",
+  references: "",
+  tor_path: null,
+  cert_path: null,
+};
 
 export default function JobApplicationForm() {
   const { csrf, job, flash } = window.__LARAVEL__ ?? {};
-  const [error, setError] = useState('');
-  // const [form, setForm] = useState(initialForm);
+  const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null); // { type: 'success'|'error', message }
 
-  // const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
+  const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
 
   const salaryMin = 10000, salaryMax = 200000;
   const salaryNum = parseInt(form.desired_pay) || salaryMin;
@@ -45,7 +44,7 @@ export default function JobApplicationForm() {
     setStatus(null);
 
     try {
-      const data = new FormData();
+      const data = new formData();
 
       // Append all text fields
       const textFields = [
@@ -54,31 +53,35 @@ export default function JobApplicationForm() {
         "date_available","highest_education","college_university",
         "referred_by","references"
       ];
-      textFields.forEach(k => data.append(k, form[k] || ""));
+      textFields.forEach(k => data.append(k, form[k].value || ""));
+      if (form.resume.files[0])  data.append('resume', form.resume.files[0]);
+      if (form.tor.files[0])     data.append('tor', form.tor.files[0]);
+      if (form.cert.files[0])    data.append('cert', form.cert.files[0]);
+
 
       // Append contact_number separately (not in migration but in form)
-      data.append("contact_number", form.contact_number || "");
+      // data.append("contact_number", form.contact_number || "");
 
       // Append files
-      if (form.tor_path instanceof File) data.append("tor_path", form.tor_path);
-      if (form.cert_path instanceof File) data.append("cert_path", form.cert_path);
+      // if (form.tor_path instanceof File) data.append("tor_path", form.tor_path);
+      // if (form.cert_path instanceof File) data.append("cert_path", form.cert_path);
 
-      const res = await fetch(API_URL, {
+      const res = await fetch(`/apply/${job.id}`, {
         method: "POST",
         headers: {
-          "X-CSRF-TOKEN": document.querySelector('meta[name="csrf-token"]')?.content || "",
-          "Accept": "application/json",
+          "X-CSRF-TOKEN": csrf,
+          // "Accept": "application/json",
+          body: textFields
         },
-        body: data,
       });
 
-      if (!res.ok) {
+      if (!res.ok || res.redirected) {
         const err = await res.json().catch(() => ({}));
         throw new Error(err.message || `Server error ${res.status}`);
       }
 
       setStatus({ type: "success", message: "Application submitted successfully! We'll be in touch soon." });
-      setForm(initialForm);
+      setForm();
     } catch (e) {
       setStatus({ type: "error", message: e.message || "Submission failed. Please try again." });
     } finally {
@@ -87,10 +90,11 @@ export default function JobApplicationForm() {
   };
 
   return (
+    // <><p>Test</p></>
     <div className="app-wrap">
       <div className="form-card">
         <div className="form-header">
-          <h1>Job <em>Application</em> Form</h1>
+          <h1>Job Application Form</h1>
           <p>Please fill out all required information below</p>
         </div>
 
@@ -101,7 +105,7 @@ export default function JobApplicationForm() {
               {status.message}
             </div>
           )}
-          <form>
+          <form onSubmit={handleSubmit}>
 
           {/* Personal Details */}
           <div className="section">
@@ -273,7 +277,7 @@ export default function JobApplicationForm() {
             </div>
           </div>
 
-          <button className="submit-btn" onClick={handleSubmit} disabled={loading}>
+          <button className="submit-btn" type="submit" disabled={loading}>
             {loading ? "Submitting…" : "Submit Application"}
           </button>
           </form>
