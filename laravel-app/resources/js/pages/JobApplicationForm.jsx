@@ -29,6 +29,9 @@ export default function JobApplicationForm() {
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState(null); // { type: 'success'|'error', message }
 
+  console.log('Job data:', job); 
+  console.log('Job ID:', job?.id); 
+
   const set = (key, value) => setForm(f => ({ ...f, [key]: value }));
 
   const salaryMin = 10000, salaryMax = 200000;
@@ -39,50 +42,70 @@ export default function JobApplicationForm() {
 
   const handleFile = (key, file) => set(key, file || null);
 
-  const handleSubmit = async () => {
+    const handleSubmit = async (e) => {
+    alert('Form submitted!');
+    e.preventDefault();
     setLoading(true);
     setStatus(null);
 
-    try {
-      const data = new formData();
+    console.log('handleSubmit called!');
+    console.log('Job ID:', job?.id);
 
-      // Append all text fields
+    try {
+      console.log('Creating FormData...');
+      const data = new FormData();
+
+      // ✅ Fix 1: Remove .value from form[k]
       const textFields = [
         "first_name","last_name","email","city","province",
         "postal_code","country","desired_pay","engagement_type",
         "date_available","highest_education","college_university",
         "referred_by","references"
       ];
-      textFields.forEach(k => data.append(k, form[k].value || ""));
-      if (form.resume.files[0])  data.append('resume', form.resume.files[0]);
-      if (form.tor.files[0])     data.append('tor', form.tor.files[0]);
-      if (form.cert.files[0])    data.append('cert', form.cert.files[0]);
+      textFields.forEach(k => {
+        console.log(`Appending ${k}:`, form[k]);
+        data.append(k, form[k] || "");
+      });
 
+      // ✅ Fix 3: Remove resume check (it doesn't exist in state)
+      // ✅ Use tor_path and cert_path (which are File objects)
+      if (form.tor_path instanceof File) {
+        console.log('Appending tor_path');
+        data.append('tor_path', form.tor_path);
+      }
+      if (form.cert_path instanceof File) {
+        console.log('Appending cert_path');
+        data.append('cert_path', form.cert_path);
+      }
 
-      // Append contact_number separately (not in migration but in form)
-      // data.append("contact_number", form.contact_number || "");
+      console.log('FormData ready');
 
-      // Append files
-      // if (form.tor_path instanceof File) data.append("tor_path", form.tor_path);
-      // if (form.cert_path instanceof File) data.append("cert_path", form.cert_path);
-
+      // ✅ Fix 2: Use 'data' (FormData object), NOT 'textFields' (array)
       const res = await fetch(`/apply/${job.id}`, {
         method: "POST",
         headers: {
           "X-CSRF-TOKEN": csrf,
-          // "Accept": "application/json",
-          body: textFields
         },
+        body: data,
       });
 
-      if (!res.ok || res.redirected) {
+      console.log('Response status:', res.status);
+
+      // ✅ Fix 4: Only check !res.ok (remove res.redirected)
+      if (!res.ok) {
         const err = await res.json().catch(() => ({}));
+        console.error('Error response:', err);
         throw new Error(err.message || `Server error ${res.status}`);
       }
 
-      setStatus({ type: "success", message: "Application submitted successfully! We'll be in touch soon." });
-      setForm();
+      const result = await res.json();
+      console.log('Success response:', result);
+      setStatus({ type: "success", message: "Application submitted successfully!" });
+
+      // ✅ Fix 5: Reset to initialForm, not undefined
+      setForm(initialForm);
     } catch (e) {
+      console.error('Submission error:', e);
       setStatus({ type: "error", message: e.message || "Submission failed. Please try again." });
     } finally {
       setLoading(false);

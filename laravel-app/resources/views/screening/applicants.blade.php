@@ -25,8 +25,8 @@
             @foreach($job->applications as $index => $app)
             <tr>
                 <td>{{ $index + 1 }}</td>
-                <td>{{ $app->user->name }}</td>
-                <td>{{ $app->user->email }}</td>
+                <td>{{ $app->first_name }} {{ $app->last_name }}</td>
+                <td>{{ $app->email }}</td>
                 <td>{{ $app->status }}</td>
                 <td>
                     @if($app->resume_path)

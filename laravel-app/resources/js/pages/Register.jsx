@@ -48,7 +48,7 @@ export default function Register() {
         name: form.name.value,
         email: form.email.value,
         password: form.password.value,
-        role: form.role.value
+        // role: form.role.value
         })
       });
 
@@ -91,7 +91,7 @@ export default function Register() {
 
               <div className="input-section">
                 <label>Confirm your password </label>
-                <input type="password" name="password" placeholder="Enter your password" onChange={handleInputChange} required />
+                <input type="password" name="confirmPassword" placeholder="Enter your password" onChange={handleInputChange} required />
               </div>
 
               {/* <div className="input-section">

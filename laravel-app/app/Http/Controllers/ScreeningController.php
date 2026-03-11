@@ -43,7 +43,7 @@ class ScreeningController extends Controller
     // ----------------------------------------------------------------
     public function showJobApplicants($jobId)
     {
-        $job = Job::with('applications.user')->findOrFail($jobId);
+          $job = Job::with('applications')->findOrFail($jobId);
 
         /** @var \App\Models\User $user */
         $user = Auth::user();

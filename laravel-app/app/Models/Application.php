@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class Application extends Model
 {
     protected $fillable = [
-        'job_id', 'user_id',
+        'job_id',
         // Personal Details
         'first_name', 'last_name', 'email',
         'phone', 'address', 'city', 'province', 'postal_code', 'country',
@@ -28,10 +28,10 @@ class Application extends Model
     const ENGAGEMENT_FULL_TIME = 'full_time';
     const ENGAGEMENT_PART_TIME = 'part_time';
 
-    public function user(): BelongsTo
-    {
-        return $this->belongsTo(User::class);
-    }
+    // public function user(): BelongsTo
+    // {
+    //     return $this->belongsTo(User::class);
+    // }
 
     public function job(): BelongsTo
     {
