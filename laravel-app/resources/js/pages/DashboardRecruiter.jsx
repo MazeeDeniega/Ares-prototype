@@ -72,19 +72,71 @@ export default function DashboardRecruiter() {
     // }
   };
 
-  const trunc = (text, length = 50) =>
-    text.length > length ? text.slice(0, length) + '...' : text;
-
   return (
     <>
     <NavBar name='Recruiter'/>
 
-    <div className="main-cont">
+    <div className="rec-main-cont">
       <br />
-      <div className="heading-rec-cont">
-        <h3>Your Jobs</h3>
-         
+      <div className="rec-inner-cont">
+        <div className="heading-rec-cont">
+          <h3>Your Jobs</h3>
+        </div>
+
+        {/* ── jobs table ── */}
+        <div className="table-cont">
+          <div className="table-top">
+            <div className="flash-message">
+              {flash.success && <p style={{color: 'green'}}>{flash.success}</p>}
+              {flash.error && <p style={{color: 'red'}}>{flash.error}</p>}
+            </div>
+            <div className="header-btn">
+              <a href="/preferences/edit"><button className="edit-pref-btn" type="button">Default Preferences</button></a>
+              <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>+ New Job</button> 
+            </div>
+          </div>
+
+          <table className='table-main'>
+            <thead>
+              <tr className="table-heading">
+                <th>Job Title</th>
+                <th>Description</th>
+                <th>Applicants</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody className='table-body-rec'>
+              {jobs.map((job) => (
+                <tr
+                  className="table-row-rec"
+                  key={job.id}
+                  onClick={() => (window.location.href = `/screening/${job.id}`)}
+                >
+                  <td>{job.title}</td>
+                  <td className="table-job-desc">
+                    {job.description}
+                  </td>
+                  <td style={{textAlign: "center"}}>{job.applications_count ?? job.applications?.length ?? 0}</td>
+                  <td className='action-btns' onClick={(e) => e.stopPropagation()}>  
+                    <a  href={`/jobs/${job.id}/preferences`}><button className="edit-pref-btn" type="button"> 
+                      Preference {/* Don't forget to use <Link> Tag  */}
+                    </button></a>
+                    <button className='delete-btn' onClick={() => handleDelete(job.id)}>
+                      Delete
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {jobs.length === 0 && (
+                <tr>
+                  <td colSpan={4}>No jobs posted yet.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
+      
 
       {/* ── modal to add job ── */}
       {showModal && (                                      // closes modal when clicked outside
@@ -122,59 +174,6 @@ export default function DashboardRecruiter() {
         </div>  
       )}
       
-      <hr />
-
-      {/* ── jobs table ── */}
-      <div className="table-cont">
-        <div className="table-top">
-          <div className="flash-message">
-            {flash.success && <p style={{color: 'green'}}>{flash.success}</p>}
-            {flash.error && <p style={{color: 'red'}}>{flash.error}</p>}
-          </div>
-          <div className="header-btn">
-            <a href="/preferences/edit"><button className="edit-pref-btn" type="button">Default Preferences</button></a>
-            <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>+ New Job</button> 
-          </div>
-        </div>
-        <table className='table-main'>
-          <thead>
-            <tr className="table-heading">
-              <th>Job Title</th>
-              <th>Description</th>
-              <th>Applicants</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody className='table-body-rec'>
-            {jobs.map((job) => (
-              <tr
-                className="table-row-rec"
-                key={job.id}
-                onClick={() => (window.location.href = `/screening/${job.id}`)}
-              >
-                <td>{job.title}</td>
-                <td>
-                  {trunc(job.description)}
-                </td>
-                <td>{job.applications_count ?? job.applications?.length ?? 0}</td>
-                <td className='action-btns' onClick={(e) => e.stopPropagation()}>  
-                  <a  href={`/jobs/${job.id}/preferences`}><button className="edit-pref-btn" type="button"> 
-                    Preference {/* Don't forget to use <Link> Tag  */}
-                  </button></a>
-                  <button className='delete-btn' onClick={() => handleDelete(job.id)}>
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {jobs.length === 0 && (
-              <tr>
-                <td colSpan={4}>No jobs posted yet.</td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
     </>
   );

@@ -4,7 +4,7 @@
     @viteReactRefresh
     @vite(['resources/js/app.jsx'])
 </head>
-<body style="padding:20px">
+<body>
     <script>
     window.__LARAVEL__ = {
         user: {
