@@ -27,42 +27,48 @@ export default function AdminDashboard() {
   return (
     <>
     <NavBar name={user.name}/>
-    <div className='main-cont'>
-      {flash.success && <p style={{ color: 'green' }}>{flash.success}</p>}
-      {flash.error && <p style={{ color: 'red' }}>{flash.error}</p>}
+    <div className='admin-main-cont'>
 
-      <div className="heading-cont">
-        <h3>All Users</h3>
+      <div className="admin-inner-cont">
+        <div className="heading-cont">
+          <h3>All Users</h3>
+        </div>
+
+        <div className="flash">
+          {flash.success && <p style={{ color: 'green' }}>{flash.success}</p>}
+          {flash.error && <p style={{ color: 'red' }}>{flash.error}</p>}
+        </div>
+
+        <div className="table-cont">
+          <table className='table-main'>
+            <thead>
+              <tr className='table-heading'><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr className='table-body' key={u.id}>
+                  <td className='id'>{u.id}</td>
+                  <td>{u.name}</td>
+                  <td>{u.email}</td>
+                  <td className='role-selector'>
+                    <select value={u.role} onChange={e => updateRole(u.id, e.target.value)}>
+                      <option value="applicant">Applicant</option>
+                      <option value="recruiter">Recruiter</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </td>
+                  <td>
+                    {u.role !== 'admin' && (
+                      <button className='delete-btn' onClick={() => deleteUser(u.id)}>Delete</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
       
-      <div className="table-cont">
-        <table className='table-main'>
-          <thead>
-              <tr className='table-heading'><th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Action</th></tr>
-          </thead>
-          <tbody>
-            {users.map(u => (
-              <tr className='table-body' key={u.id}>
-                <td className='id'>{u.id}</td>
-                <td>{u.name}</td>
-                <td>{u.email}</td>
-                <td className='role-selector'>
-                  <select value={u.role} onChange={e => updateRole(u.id, e.target.value)}>
-                    <option value="applicant">Applicant</option>
-                    <option value="recruiter">Recruiter</option>
-                    <option value="admin">Admin</option>
-                  </select>
-                </td>
-                <td>
-                  {u.role !== 'admin' && (
-                    <button className='delete-btn' onClick={() => deleteUser(u.id)}>Delete</button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
     </div>
     </>
   );
