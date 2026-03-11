@@ -30,7 +30,6 @@ Route::get('/', function () {
     return match($user->role) {
         'admin'     => redirect('/admin'),
         'recruiter' => redirect('/recruiter'),
-        'applicant' => redirect('/jobs'),
         default     => redirect('/login'),
     };
 });
@@ -38,11 +37,10 @@ Route::get('/', function () {
 // Public Jobs
 Route::get('/jobs', [JobController::class, 'index']);
 Route::get('/jobs/{id}', [JobController::class, 'show']);
-
+Route::get('/apply/{jobId}', [ApplicantController::class, 'showApplyForm']);
+Route::post('/apply/{jobId}', [ApplicantController::class, 'apply']);
 // Applicant Routes
 Route::middleware(['auth', 'role:applicant'])->group(function () {
-    Route::get('/apply/{jobId}', [ApplicantController::class, 'showApplyForm']);
-    Route::post('/apply/{jobId}', [ApplicantController::class, 'apply']);
     Route::get('/my-applications', [ApplicantController::class, 'myApplications']);
 });
 

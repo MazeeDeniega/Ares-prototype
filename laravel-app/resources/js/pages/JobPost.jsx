@@ -22,15 +22,8 @@ export default function JobPost() {
             <hr />
           </div>
           <div className="jobpost-action-btn">
-            {user ? (
-            user.role === 'applicant' && (
               <Link to={`/apply/${job?.id}`}>
                 <button className='apply-btn' type='button'>Apply Now</button></Link>
-            )
-            ) : (
-              <Link to="/login">
-                <button className='apply-btn' type='button'>Login to Apply</button></Link>
-            )}
           </div>
           
         </div>
