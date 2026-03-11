@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head><title>{{ $job->title }}</title></head>
-<body style="padding:20px">
+<body>
     <script>
     window.__LARAVEL__ = {
         @auth
