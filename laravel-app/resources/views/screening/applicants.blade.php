@@ -2,7 +2,16 @@
 <html>
 <head><title>Screening - {{ $job->title }}</title></head>
 <body style="padding:20px">
-    <p><a href="/recruiter">&larr; Back to Dashboard</a></p>
+    <script>
+    window.__LARAVEL__ = {
+        csrf: "{{ csrf_token() }}",
+        job: @json($job->load(['applications.user']))
+    };
+    </script>
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx'])
+    <div id="app"></div>
+    {{-- <p><a href="/recruiter">&larr; Back to Dashboard</a></p>
     <h2>Applicants for: {{ $job->title }}</h2>
 
     <hr>
@@ -40,6 +49,6 @@
         </table>
     @else
         <p>No applicants yet.</p>
-    @endif
+    @endif --}}
 </body>
 </html>
