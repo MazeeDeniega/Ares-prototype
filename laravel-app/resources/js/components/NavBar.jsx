@@ -16,7 +16,7 @@ export default function NavBar(props) {
     <>
     <nav className='navbar'>
       <div className="nav-left">
-        ARES
+        <p>ARES</p>
       </div>
 
       <div className="nav-center">

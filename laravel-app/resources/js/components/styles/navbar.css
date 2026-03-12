@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Kavoon&family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Oi&display=swap');
+/* font family is "Nunito", "Oi", and "Kavoon" */
 .navbar {
   top: 0;
   left: 0;
@@ -15,6 +17,11 @@
 .nav-left, .nav-center, .nav-right {
   display: flex;
   align-items: center;
+}
+
+.nav-left p {
+  font-family: "Kavoon", sans-serif;
+  font-size: 1.8rem;
 }
 
 .nav-center {
