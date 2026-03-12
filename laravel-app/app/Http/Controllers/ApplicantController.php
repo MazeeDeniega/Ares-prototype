@@ -13,26 +13,35 @@ class ApplicantController extends Controller
         return view('applicant.apply', compact('job'));
     }
 
-    public function apply(Request $request, $jobId)
+        public function apply(Request $request, $jobId)
     {
-        $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
-            'email' => 'required|email|max:255',
-            'city' => 'required|string|max:100',
-            'province' => 'required|string|max:100',
-            'postal_code' => 'nullable|string|max:20',
-            'country' => 'required|string|max:100',
-            'desired_pay' => 'required|numeric|min:10000|max:200000',
-            'engagement_type' => 'required|string|max:50',
-            'date_available' => 'nullable|date',
-            'highest_education' => 'nullable|string|max:100',
-            'college_university' => 'nullable|string|max:255',
-            'referred_by' => 'nullable|string|max:255',
-            'references' => 'nullable|string',
-            'tor_path' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:4096',
-            'cert_path' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:4096',
-        ]);
+        try {
+            $request->validate([
+                'first_name' => 'required|string|max:255',
+                'last_name' => 'required|string|max:255',
+                'email' => 'required|email|max:255',
+                'city' => 'required|string|max:100',
+                'province' => 'required|string|max:100',
+                'postal_code' => 'nullable|string|max:20',
+                'country' => 'required|string|max:100',
+                'desired_pay' => 'required|numeric|min:10000|max:200000',
+                'engagement_type' => 'required|string|max:50',
+                'date_available' => 'nullable|date',
+                'highest_education' => 'nullable|string|max:100',
+                'college_university' => 'nullable|string|max:255',
+                'referred_by' => 'nullable|string|max:255',
+                'references' => 'nullable|string',
+                'tor_path' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:4096',
+                'resume_path' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:4096',
+                'cert_path' => 'nullable|file|mimes:pdf,doc,docx,jpg,png|max:4096',
+            ]);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Return JSON errors instead of HTML
+            return response()->json([
+                'errors' => $e->errors(),
+                'message' => 'Please fill in all required fields correctly.'
+            ], 422);
+        }
 
         $data = [
             'job_id' => $jobId,
@@ -52,19 +61,20 @@ class ApplicantController extends Controller
             'status' => 'pending',
         ];
 
-        // Upload TOR
         if ($request->hasFile('tor_path')) {
             $data['tor_path'] = $request->file('tor_path')->store('tors', 'public');
         }
 
-        // Upload Certificate
+        if ($request->hasFile('resume_path')) {
+            $data['resume_path'] = $request->file('resume_path')->store('resumes', 'public');
+        }
+
         if ($request->hasFile('cert_path')) {
             $data['cert_path'] = $request->file('cert_path')->store('certs', 'public');
         }
 
         $application = Application::create($data);
 
-        // ✅ Return JSON for React
         return response()->json([
             'success' => true,
             'application_id' => $application->id,
