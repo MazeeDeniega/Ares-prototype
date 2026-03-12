@@ -88,8 +88,8 @@ export default function Evaluate() {
                   {applications.map((app, index) => (
                     <tr key={app.id}>
                       <td>{index + 1}</td> {/* hard coded id, need to get right id */}
-                      <td>{app.user?.name}</td>
-                      <td>{app.user?.email}</td>
+                      <td>{app.first_name} {app.last_name}</td>
+                      <td>{app.email}</td>
                       <td>{app.status}</td>
                       <td>
                         {app.resume_path

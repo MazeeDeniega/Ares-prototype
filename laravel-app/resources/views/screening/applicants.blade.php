@@ -5,7 +5,7 @@
     <script>
     window.__LARAVEL__ = {
         csrf: "{{ csrf_token() }}",
-        job: @json($job->load(['applications.user']))
+        job: @json($job->load(['applications']))
     };
     </script>
     @viteReactRefresh
