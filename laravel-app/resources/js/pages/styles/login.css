@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Coustard:wght@400;900&family=Kavoon&family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Oi&family=Tac+One&display=swap');
+
 html, body {
   margin: 0;
   padding: 0;
@@ -26,6 +28,10 @@ html, body {
   color: white;
   padding: 24px;
   margin-bottom: 12px;
+}
+
+.login-header span {
+  font-family: "Coustard", sans-serif;
 }
 
 .login-form-body {
