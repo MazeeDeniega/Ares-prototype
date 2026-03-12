@@ -9,6 +9,7 @@
   border-bottom: 1px solid #ddd;
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 12px;
+  margin: 0 40px;
 }
 
 .nav-left, .nav-center, .nav-right {
