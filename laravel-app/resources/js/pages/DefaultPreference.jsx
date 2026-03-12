@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react';
 import './styles/preference.css';
 
 export default function DefaultPreferences() {
-    const { csrf, pref, flash } = window.__LARAVEL__ ?? {};
+    const { csrf, pref, flash, job } = window.__LARAVEL__ ?? {};
+
+    const postUrl = job ? `/jobs/${job.id}/preferences` : `/preferences`;
+    const subtitle = job ?
+      'Overrides your default preferences for this job only.' :
+      'Applied to all jobs unless overridden by a job-specific preference.';
+
 
     const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 100);
     const [keywordWeight,    setKeywordWeight]    = useState(pref?.keyword_weight     ?? 40);
@@ -45,7 +51,7 @@ export default function DefaultPreferences() {
         setError('');
         setSuccess('');
 
-        const response = await fetch('/preferences', {
+        const response = await fetch(postUrl, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -68,12 +74,10 @@ export default function DefaultPreferences() {
 
         if (response.ok) {
             setSuccess('Preferences saved successfully!');
-            console.log('Preferences saved successfully!');
         } else {
           try {
             const data = await response.json();
             setError(data.message || 'Failed to save preferences.');
-            console.log('Failed to save');
           } catch {
               setError(`Server error (${response.status}) — check Laravel logs.`);
           }
@@ -110,8 +114,8 @@ export default function DefaultPreferences() {
         <div className="upper-pref-cont">
           <p><a href="/recruiter">← Back</a></p>
           <div className="header-pref-cont">
-            <h2>Default Preferences</h2>
-            <p>Applied to all jobs unless overridden by a job-specific preference.</p>
+            <h2>{job ? `Job Preferences — ${job.title}` : 'Default Preferences'}</h2>
+            <p>{subtitle}</p>
           </div>
           {error   && <div style={styles.error}>{error}</div>}
           {success && <div style={styles.success}>{success}</div>}
