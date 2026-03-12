@@ -8,10 +8,6 @@ import spacy
 
 app = Flask(__name__)
 
-# ---------------------------------------------------------------------------
-# Blueprint registration — must come AFTER app is created but BEFORE routes
-# so debug_routes can call back into this module's functions via _core().
-# ---------------------------------------------------------------------------
 from debug_routes import debug_bp
 app.register_blueprint(debug_bp)
 
@@ -260,6 +256,8 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         feedback.setdefault("formatting", []).append("No contact details (email or phone) detected near the top of the resume.")
 
     formatting_score = round(min(formatting_score, 1), 3)
+
+    # 2. LANGUAGE QUALITY
     language_score = 0
 
     action_verbs = [
@@ -393,7 +391,6 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
 
     organization_score = round(min(organization_score, 1), 3)
 
-    # Weighted presentation roll-up
     w_fmt = presentation_weights.get("formatting_weight",   25)
     w_lng = presentation_weights.get("language_weight",     25)
     w_con = presentation_weights.get("concise_weight",      25)

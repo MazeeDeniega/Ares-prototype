@@ -51,7 +51,7 @@ class ScreeningController extends Controller
             abort(403, 'Unauthorized');
         }
 
-        return view('screening.applicants', compact('job')); // ← was 'screening.index'
+        return view('screening.applicants', compact('job'));
     }
 
     // ----------------------------------------------------------------
@@ -208,7 +208,6 @@ class ScreeningController extends Controller
 
                 // --------------------------------------------------------
                 // PRESENTATION SCORE (0–100)
-                // NLP computes this using the weights we sent — use directly.
                 // --------------------------------------------------------
                 $presentationRaw   = $data['presentation_score'] ?? 0;
                 $presentationScore = round(

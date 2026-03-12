@@ -26,10 +26,6 @@ class JobController extends Controller {
     public function index() 
     {
         $jobs = Job::with('user')->latest()->get();
-
-        // Debug to check if jobs are being retrieved correctly
-        // dd($jobs->toArray());
-
         return view('jobs.index', compact('jobs'));
     }
 
