@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head><title>Screening - {{ $job->title }}</title></head>
-<body style="padding:20px">
+<body>
     <script>
     window.__LARAVEL__ = {
         csrf: "{{ csrf_token() }}",
