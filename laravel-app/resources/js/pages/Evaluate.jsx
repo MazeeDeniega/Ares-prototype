@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { Link } from 'react-router';
+import './styles/evaluate.css';
+import NavBar from "../components/NavBar";
 
 export default function Evaluate() {
   const { job, csrf } = window.__LARAVEL__ ?? {};
@@ -34,56 +37,80 @@ export default function Evaluate() {
   };
 
   return (
-    <div style={{ padding: 20 }}>
-      <p><a href="/recruiter">← Back to Dashboard</a></p>
-      <h2>Applicants for: {job?.title}</h2>
-      <hr />
+    <>
+    <NavBar name="Recruiter" />
+    <div className="eval-main-cont">
+      
+      <div className="eval-inner-cont">
 
-      {success && <p style={{ color: 'green' }}>{success}</p>}
-      {error   && <p style={{ color: 'red' }}>{error}</p>}
+        <div className="eval-upper-cont">
+          
+            <p><Link to="/recruiter">← Back to Dashboard</Link></p>
+            
+        </div>
 
-      {applications.length > 0 ? (
-        <>
-        <button
-          onClick={handleEvaluate}
-          disabled={loading}
-          style={{ padding: '10px 20px', background: 'green', color: 'white', cursor: 'pointer' }}
-        >
-          {loading ? 'Evaluating...' : 'Evaluate All Applicants'}
-        </button>
+        <div className="eval-lower-cont">
 
-        <h3>Applicant List ({applications.length})</h3>
-        <table border="1" cellPadding="5">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Candidate Name</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th>Resume</th>
-            </tr>
-          </thead>
-          <tbody>
-            {applications.map((app, index) => (
-              <tr key={app.id}>
-                <td>{index + 1}</td>
-                <td>{app.user?.name}</td>
-                <td>{app.user?.email}</td>
-                <td>{app.status}</td>
-                <td>
-                  {app.resume_path
-                    ? <a href={`/files/${app.id}/resume`} target="_blank">View Resume</a>
-                    : 'No Resume'
-                  }
-                </td>
-              </tr>
-            ))}
-        </tbody>
-        </table>
-        </>
-      ) : (
-          <p>No applicants yet.</p>
-      )}
+          <div className="eval-header">
+            <h2>Applicants for: {job?.title}</h2>
+          </div>
+          
+          <hr />
+          <div className="flash">
+            {success && <p style={{ color: 'green' }}>{success}</p>}
+            {error   && <p style={{ color: 'red' }}>{error}</p>}
+          </div>
+
+          {applications.length > 0 ? (
+          <div className="eval-table-cont">
+            <div className="eval-table-header">
+              <h3>Applicant List ({applications.length})</h3>
+              <button
+                onClick={handleEvaluate}
+                disabled={loading}
+              >
+                {loading ? 'Evaluating...' : 'Evaluate All Applicants'}
+              </button>
+            </div>
+            
+            <div className="eval-table-cont">
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Candidate Name</th>
+                    <th>Email</th>
+                    <th>Status</th>
+                    <th>Resume</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {applications.map((app, index) => (
+                    <tr key={app.id}>
+                      <td>{index + 1}</td> {/* hard coded id, need to get right id */}
+                      <td>{app.user?.name}</td>
+                      <td>{app.user?.email}</td>
+                      <td>{app.status}</td>
+                      <td>
+                        {app.resume_path
+                          ? <a href={`/files/${app.id}/resume`} target="_blank">View Resume</a>
+                          : 'No Resume'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            
+          </div>
+        ) : (
+            <p>No applicants yet.</p>
+        )}
+        </div>
+        
+        
+      </div>
     </div>
+    </>
   );
 }
