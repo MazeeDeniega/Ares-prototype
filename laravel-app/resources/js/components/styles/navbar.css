@@ -1,5 +1,6 @@
+@import url('https://fonts.googleapis.com/css2?family=Coustard:wght@400;900&family=Kavoon&family=Nunito:ital,wght@0,200..1000;1,200..1000&family=Oi&family=Tac+One&display=swap');
+/* font family is "Nunito", "Oi", "Kavoon", "Tac One", "Coustard" */
 .navbar {
-  margin-top: -20px;
   top: 0;
   left: 0;
   display: flex;
@@ -10,11 +11,18 @@
   border-bottom: 1px solid #ddd;
   border-bottom-left-radius: 12px;
   border-bottom-right-radius: 12px;
+  margin: 0 40px;
 }
 
 .nav-left, .nav-center, .nav-right {
   display: flex;
   align-items: center;
+}
+
+.nav-left p {
+  font-family: "Coustard", sans-serif;
+  font-size: 1.8rem;
+  font-weight: 800;
 }
 
 .nav-center {
@@ -27,11 +35,12 @@
   background-color: #dd1c1a;
   padding: .5rem;
   border: 2px solid;
+  border-radius: 4px;
   cursor: pointer;
 }
 
 .logout-btn:hover {
   color: #dd1c1a;
   background-color: white;
-  /* transition: .2s; */
+  transition: .2s;
 }

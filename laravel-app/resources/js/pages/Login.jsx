@@ -36,7 +36,7 @@ export default function Login() {
     <div className="login-main-cont">
       <div className="login-inner-cont">
         <div className="login-header">
-          <h2>Welcome to ARES!</h2>
+          <h2>Welcome to <span>ARES</span>!</h2>
         </div>
 
         {error && <p style={{ color: 'red' }}>{error}</p>}

@@ -2,7 +2,7 @@
 <html>
 <head>
     <title>Default Preferences</title>
-    <style>
+    {{-- <style>
         body { font-family: Arial, sans-serif; padding: 24px; max-width: 700px; }
         h2 { margin-bottom: 2px; }
         .subtitle { color: #6b7280; font-size: 0.88em; margin-bottom: 20px; }
@@ -32,10 +32,23 @@
         .success { color: #16a34a; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; padding: 8px 12px; margin-bottom: 16px; font-size: 0.88em; }
         button[type=submit] { background: #2563eb; color: white; border: none; padding: 10px 24px; border-radius: 6px; font-size: 0.95em; cursor: pointer; margin-top: 20px; }
         button[type=submit]:hover { background: #1d4ed8; }
-    </style>
+    </style> --}}
 </head>
 <body>
-    <p><a href="/recruiter">&larr; Back</a></p>
+
+    <script>
+    window.__LARAVEL__ = {
+        csrf: "{{ csrf_token() }}",
+        pref: @json($pref ?? null),
+        flash: {
+            success: "{{ session('success') }}"
+        }
+    };
+    </script>
+    @viteReactRefresh
+    @vite(['resources/js/app.jsx'])
+    <div id="app"></div>
+    {{-- <p><a href="/recruiter">&larr; Back</a></p>
     <h2>Default Preferences</h2>
     <p class="subtitle">Applied to all jobs unless overridden by a job-specific preference.</p>
 
@@ -47,10 +60,10 @@
     @endif
 
     <form method="POST" action="/preferences">
-        @csrf
+        @csrf --}}
 
         {{-- ═══ FINAL SCORE ══════════════════════════════════════════ --}}
-        <h3>Final Score Weights</h3>
+        {{-- <h3>Final Score Weights</h3>
         <p class="hint">How much each component contributes to the final ranking score (must total 100%).</p>
 
         <label>Qualifications (%)</label>
@@ -70,10 +83,10 @@
                    style="opacity:0.5">
             <div class="derived" id="pres_display">{{ 100 - old('qual_weight', $pref->qual_weight ?? 100) }}</div>
         </div>
-        <p class="hint">Presentation = 100 − Qualifications (auto-set).</p>
+        <p class="hint">Presentation = 100 − Qualifications (auto-set).</p> --}}
 
         {{-- ═══ QUALIFICATIONS ════════════════════════════════════════ --}}
-        <h3>Qualifications</h3>
+        {{-- <h3>Qualifications</h3>
 
         <h4>Skills Matching — TF-IDF + Semantic <small style="font-weight:normal;color:#6b7280">(must total 100%)</small></h4>
         <div class="section-indent">
@@ -118,10 +131,10 @@
             </div>
             @endforeach
             <p class="total-row">Total: <span id="qual_total"></span>% <span id="qual_status"></span></p>
-        </div>
+        </div> --}}
 
         {{-- ═══ PRESENTATION ══════════════════════════════════════════ --}}
-        <h3>Presentation</h3>
+        {{-- <h3>Presentation</h3>
         <p class="hint">Check which categories to score. Checked categories split 100% equally. If none are checked, all four share 25% each.</p>
 
         <div class="check-grid">
@@ -207,6 +220,6 @@
     }
     updateTotals();
     updatePresNote();
-    </script>
+    </script> --}}
 </body>
 </html>

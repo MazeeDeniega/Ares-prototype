@@ -16,17 +16,20 @@ export default function NavBar(props) {
     <>
     <nav className='navbar'>
       <div className="nav-left">
-        ARES
+        <p>ARES</p>
       </div>
 
       <div className="nav-center">
-        Welcome, {props.name}
+        Welcome {props.name}
       </div>
 
       <div className="nav-right">
-        <button className='logout-btn' onClick={handleLogout}>
+        {user ? (
+          <button className='logout-btn' onClick={handleLogout}>
           Log out
-        </button>
+        </button>) : ( <p></p>
+        )}
+        
       </div>
     </nav>
     </>

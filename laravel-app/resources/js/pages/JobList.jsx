@@ -12,13 +12,8 @@ export default function JobList() {
   return (
     <>
     <div className='job-list-body'>
-      {user ? (
-          <NavBar />
-      ) : (
-        <p>
-          <a href="/login">Login to Apply</a> | <a href="/register">Register</a>
-        </p>
-      )}
+          <NavBar name="to ARES!"/>
+      
     <div className="job-list-main-cont">
       <div className="job-list-header">
         <h2>Available Jobs</h2>

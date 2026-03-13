@@ -1,29 +1,53 @@
-html {}
 
-.main-cont {
-  height: 100vh;
+.admin-main-cont {
   align-items: center;
   display: flex;
   flex-direction: column;
 }
 
+.admin-inner-cont {
+  background-color: white;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  /* align-items: center; */
+  margin-top: 20px;
+  box-shadow: 0 4px 28px rgba(57,67,183,0.10);
+}
+
 .heading-cont {
+  background-color: #4d71d4;
+  color: white;
   font-size: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px 40px;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+  width: 100%;
 }
 
 table, th, td {
-  border: 2px solid black;
-  padding: .5rem;
+  /* border-radius: 4px; */
+  border-bottom: 2px solid #4d71d459;
+  padding: .5rem 1rem;
 }
 
 th {
-  background-color: #4BA3C3;
+  background-color: #4d71d4;
+  color: white;
+}
+
+.table-cont {
+  padding: 20px 40px;
 }
 
 .table-main {
   margin-top: 10px;
   border-collapse: collapse;
   width: 100%;
+  box-shadow: 0 4px 28px rgba(57,67,183,0.10);
 }
 
 /* Center align Id, roles and button */
@@ -37,5 +61,6 @@ th {
   background-color: #dd1c1a;
   padding: .4rem;
   border: none;
+  border-radius: 4px;
   cursor: pointer;
 }

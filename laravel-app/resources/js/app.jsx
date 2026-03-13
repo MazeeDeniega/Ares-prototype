@@ -9,6 +9,9 @@ import DashboardRecruiter from './pages/DashboardRecruiter';
 import JobList from './pages/JobList';
 import JobApplicationForm from './pages/JobApplicationForm';
 import JobPost from './pages/JobPost';
+import Evaluate from './pages/Evaluate';
+import DefaultPreferences from './pages/DefaultPreference';
+import JobPreference from './pages/JobPreference';
 
 
 createRoot(document.getElementById('app')).render(
@@ -21,6 +24,9 @@ createRoot(document.getElementById('app')).render(
       <Route path='/jobs' element={<JobList />} />
       <Route path='/apply/:id' element={<JobApplicationForm />} />
       <Route path='/jobs/:id' element={<JobPost />} />
+      <Route path='/screening/:id' element={<Evaluate />} />
+      <Route path='/preferences/edit' element={<DefaultPreferences />} />
+      <Route path='/jobs/:id/preferences' element={<JobPreference />} />
       <Route path="*" element={<p>404 - Page not found</p>} />
     </Routes>
   </BrowserRouter>
