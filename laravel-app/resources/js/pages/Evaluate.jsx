@@ -21,10 +21,7 @@ export default function Evaluate() {
 
     if (response.ok || response.redirected) {
       setSuccess('Evaluation complete!');
-      // Refresh applications to show updated statuses
-      const updated = await fetch(`/screening/${job.id}/applications`, {
-        headers: { 'X-CSRF-TOKEN': csrf }
-      });
+      window.location.href = `/screening/${job.id}/evaluate`;
       if (updated.ok) {
         const data = await updated.json();
         setApplications(data);
@@ -45,7 +42,7 @@ export default function Evaluate() {
 
         <div className="eval-upper-cont">
           
-            <p><Link to="/recruiter">← Back to Dashboard</Link></p>
+            <p><a href="/recruiter">← Back to Dashboard</a></p>
             
         </div>
 

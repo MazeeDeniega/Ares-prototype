@@ -10,6 +10,10 @@ use App\Models\JobPreference;
 
 class PreferenceController extends Controller
 {
+    // ----------------------------------------------------------------
+    // Auto-distribute 100% equally among checked presentation categories.
+    // If none checked, defaults to 25/25/25/25 (all equal).
+    // ----------------------------------------------------------------
     private function distributePresentationWeights(Request $request): array
     {
         $keys = ['formatting', 'language', 'conciseness', 'organization'];
@@ -79,7 +83,7 @@ class PreferenceController extends Controller
     }
 
     public function update(Request $request)
-    {
+    {        
         $request->validate([
             'qual_weight'         => 'required|integer|min:0|max:100',
             'keyword_weight'      => 'required|integer|min:0|max:100',

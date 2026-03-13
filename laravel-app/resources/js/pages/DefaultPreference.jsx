@@ -13,7 +13,7 @@ export default function DefaultPreferences() {
     const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 100);
     const [keywordWeight,    setKeywordWeight]    = useState(pref?.keyword_weight     ?? 40);
     const [semanticWeight,   setSemanticWeight]   = useState(pref?.semantic_weight    ?? 60);
-    const [skillsWeight,     setSkillsWeight]     = useState(pref?.skills_weight      ?? 35);
+    const [skillsWeight,     setSkillsWeight]     = useState(pref?.skills_weight      ?? 45);
     const [experienceWeight, setExperienceWeight] = useState(pref?.experience_weight  ?? 20);
     const [educationWeight,  setEducationWeight]  = useState(pref?.education_weight   ?? 25);
     const [certWeight,       setCertWeight]       = useState(pref?.cert_weight        ?? 10);

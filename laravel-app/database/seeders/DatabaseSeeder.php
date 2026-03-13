@@ -107,6 +107,42 @@ class DatabaseSeeder extends Seeder
             'description' => 'Need a Full Stack Developer with both frontend and backend experience.',
         ]);
 
+        $job4 = Job::create([
+            'user_id'     => $recruiter->id,
+            'title'       => 'IT Professional / IT Specialist',
+            'description' => 'Job Summary:
+ We are seeking a motivated and skilled IT Professional to manage, maintain, and support the organization’s information technology systems. The ideal candidate should have strong technical knowledge, problem-solving skills, and the ability to work with both hardware and software technologies.
+
+Key Responsibilities
+Install, configure, and maintain computer systems and networks
+
+Monitor system performance and troubleshoot technical issues
+
+Provide technical support to users and resolve IT-related problems
+
+Maintain system security, backups, and data integrity
+
+Manage software updates, patches, and system upgrades
+
+Assist in database and server maintenance
+
+Document technical procedures and system configurations
+
+
+Required Skills
+Knowledge of computer hardware and software systems
+
+Basic networking knowledge (LAN/WAN, routers, switches)
+
+Troubleshooting and problem-solving skills
+
+Familiarity with operating systems (Windows/Linux)
+
+Basic database knowledge (MySQL or similar)
+
+Good communication skills',
+        ]);
+
         // ----------------------------------------------------------------
         // Job-level preference override for job1 (to test override behaviour)
         // Experience weighted heavier for a senior backend role.
@@ -155,7 +191,6 @@ class DatabaseSeeder extends Seeder
         // ----------------------------------------------------------------
         Application::create([
             'job_id'             => $job1->id,
-            'user_id'            => $applicant1->id,
             'first_name'         => 'John',
             'last_name'          => 'Applicant',
             'email'              => 'applicant@test.com',
@@ -180,7 +215,6 @@ class DatabaseSeeder extends Seeder
 
         Application::create([
             'job_id'             => $job1->id,
-            'user_id'            => $applicant2->id,
             'first_name'         => 'Jane',
             'last_name'          => 'Smith',
             'email'              => 'jane@test.com',
@@ -205,7 +239,6 @@ class DatabaseSeeder extends Seeder
 
         Application::create([
             'job_id'             => $job2->id,
-            'user_id'            => $applicant3->id,
             'first_name'         => 'Mike',
             'last_name'          => 'Johnson',
             'email'              => 'mike@test.com',

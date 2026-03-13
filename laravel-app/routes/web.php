@@ -60,7 +60,7 @@ Route::middleware(['auth', 'role:recruiter'])->group(function () {
     Route::post('/preferences', [PreferenceController::class, 'update']);
 
     Route::get('/screening/{jobId}', [ScreeningController::class, 'showJobApplicants']);
-    Route::post('/screening/{jobId}/evaluate', [ScreeningController::class, 'evaluateApplicants'])->name('screen.evaluate');
+    Route::match(['get', 'post'], '/screening/{jobId}/evaluate', [ScreeningController::class, 'evaluateApplicants'])->name('screen.evaluate');
 
     Route::get('/jobs/{id}/preferences', [PreferenceController::class, 'editJobPreference']);
     Route::post('/jobs/{id}/preferences', [PreferenceController::class, 'updateJobPreference']);
