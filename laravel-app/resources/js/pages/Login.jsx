@@ -1,18 +1,21 @@
-import React from 'react';
-import { route } from 'ziggy-js';
-import { useForm, Link } from '@inertiajs/react';
+import React, { useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { BsFillLockFill, BsEnvelopeFill } from "react-icons/bs";
 import AuthForm from '../components/AuthForm';
 import './styles/login.css';
 
 export default function Login() {
-  const { data, setData, post, processing, errors } = useForm({
-    email: '',
-    password: '',
-    remember: false,
-  });
+  const navigate = useNavigate();
   document.title = "Login";
   const csrf = window.__LARAVEL__?.csrf;
+
+  const [formData, setFormData] = useState({
+    email: '',
+    password: '',
+  });
+
+  const handleChange = (field) => (e) => 
+    setFormData((prev) => ({...prev, [field]: e.target.value}));
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -45,10 +48,9 @@ export default function Login() {
       type: 'email',
       placeholder: 'Email',
       icon: <BsEnvelopeFill />,
-      value: data.email,
-      onChange: (e) => setData('email', e.target.value),
-      autoComplete: 'username',
-      error: errors.email,
+      value: formData.email,
+      onChange: handleChange('email'),
+      autoComplete: 'email',
     },
     {
       id: 'password',
@@ -56,10 +58,9 @@ export default function Login() {
       type: 'password',
       placeholder: 'Password',
       icon: <BsFillLockFill />,
-      value: data.password,
-      onChange: (e) => setData('password', e.target.value),
+      value: formData.password,
+      onChange: handleChange('password'),
       autoComplete: 'current-password',
-      error: errors.password,
     },
   ];
  
@@ -67,16 +68,16 @@ export default function Login() {
     <>
       <span>
         Don't have an account?{' '}
-        <Link href='/register'>Sign up</Link>
+        <Link to='/register'>Sign up</Link>
       </span>
       <span>or</span>
-      <Link href='/jobs'>Apply for jobs</Link>
+      <Link to='/jobs'>Apply for jobs</Link>
     </>
   );
  
   const altActions = [
-  { label: 'Sign up',        href: '/register'    },
-  { label: 'Apply for jobs', href: '/jobs'  },
+  { label: 'Sign up',        to: '/register'},
+  { label: 'Apply for jobs', to: '/jobs'},
 ];
  
   return (
@@ -87,7 +88,6 @@ export default function Login() {
       onSubmit={handleSubmit}
       footer={footer}
       altActions={altActions}
-      processing={processing}
     />
   );
 }

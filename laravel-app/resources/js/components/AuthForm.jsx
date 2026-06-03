@@ -3,33 +3,19 @@ import { Link } from '@inertiajs/react';
 import { BsClipboard2 } from "react-icons/bs";
 import bgimg from '../assets/blue_bg.png';
 import '../../css/authform.css';
-// import blueBg from '../../assets/blue_bg.png';
 
-/**
- * AuthForm — Reusable split-layout authentication form.
- *
- * Props:
- *  - title       {string}     Heading shown above the form (desktop only)
- *  - fields      {Array}      Array of field config objects:
- *                               { id, name, type, placeholder, icon: ReactNode, value, onChange, error }
- *  - submitLabel {string}     Label for the primary submit button
- *  - onSubmit    {function}   Form submit handler
- *  - footer      {ReactNode}  Content rendered below the submit button (desktop)
- *  - altActions  {Array}      [{label, href}] — secondary outlined buttons shown on mobile
- *  - processing  {boolean}    Disables the button while submitting
- */
 export default function AuthForm({
   title,
   fields = [],
   submitLabel = 'Submit',
   onSubmit,
   footer,
-  altActions = [],
+  secondaryBtns = [],
   processing = false,
 }) {
   return (
     <div className="auth-page">
-      {/* ── Left: Branding ── */}
+      {/* Left bg img */}
       <aside className="auth-branding">
         <img
           src={bgimg}
@@ -48,7 +34,7 @@ export default function AuthForm({
         </div>
       </aside>
 
-      {/* ── Right: Form Panel ── */}
+      {/* Right Form Panel */}
       <main className="auth-form-panel">
         <div className="auth-card">
           {title && <h1 className="auth-card__title">{title}</h1>}
@@ -96,12 +82,12 @@ export default function AuthForm({
           )}
 
           {/* Mobile alt-action buttons */}
-          {altActions.length > 0 && (
+          {secondaryBtns.length > 0 && (
             <div className="auth-btn-row">
-              {altActions.map((action) => (
+              {secondaryBtns.map((action) => (
                 <Link
-                  key={action.href}
-                  href={action.href}
+                  key={action.label} 
+                  to={action.to}
                   className="auth-btn-outline"
                 >
                   {action.label}
