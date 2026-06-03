@@ -5,7 +5,7 @@
   overflow: hidden;
 }
  
-/* ── Left panel (branding) ── */
+/* Left panel (branding) */
 .auth-branding {
   position: relative;
   flex: 1 1 45%;
@@ -60,7 +60,7 @@
   max-width: 260px;
 }
  
-/* ── Right panel (form area) ── */
+/* Right panel (form area) */
 .auth-form-panel {
   flex: 1 1 55%;
   display: flex;
@@ -70,7 +70,7 @@
   background: var(--color-bg-white);
 }
  
-/* ── Card ── */
+/* Card */
 .auth-card {
   width: 100%;
   max-width: 440px;
@@ -97,7 +97,7 @@
   text-align: center;
 }
  
-/* ── Input group ── */
+/* Input group */
 .auth-input-group {
   position: relative;
   display: flex;
@@ -136,7 +136,7 @@
   background: #fff;
 }
  
-/* ── Primary CTA button ── */
+/* Primary CTA button */
 .auth-btn-primary {
   width: 100%;
   padding: 14px;
@@ -164,7 +164,7 @@
   box-shadow: var(--shadow-button);
 }
  
-/* ── Footer links ── */
+/* Footer links */
 .auth-footer {
   margin-top: var(--space-lg);
   text-align: center;
@@ -180,7 +180,7 @@
   font-weight: 500;
 }
  
-/* ── Secondary outlined buttons (mobile CTA row) ── */
+/* Secondary outlined buttons (mobile CTA row) */
 .auth-btn-row {
   display: none; /* shown on mobile only via media query */
   gap: var(--space-sm);
@@ -204,7 +204,7 @@
   background: rgba(59, 130, 246, 0.08);
 }
  
-/* ── Error message ── */
+/* Error message */
 .auth-error {
   color: var(--color-error);
   font-size: var(--text-xs);
@@ -214,7 +214,7 @@
 }
  
 /* ============================================================
-   Mobile — single-column layout (≤ 767px)
+   Mobile — single-column layout
    ============================================================ */
 @media (max-width: 767px) {
   .auth-page {
