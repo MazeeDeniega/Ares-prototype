@@ -18,10 +18,7 @@ php artisan serve
 cd laravel-app
 npm install
 npm install @vitejs/plugin-react
-npm install @inertiajs/react
 npm install react-icons --save
-composer require tightenco/Ziggy
-npm install ziggy-js
 npm run dev
 ```
 
