@@ -1,7 +1,8 @@
 import React from 'react';
-import { Link } from '@inertiajs/react';
+import { Link } from 'react-router-dom'
 import { BsClipboard2 } from "react-icons/bs";
 import bgimg from '../assets/blue_bg.png';
+import aresLogo from '../assets/ares_logo_blue.png'
 import '../../css/authform.css';
 
 export default function AuthForm({
@@ -25,8 +26,10 @@ export default function AuthForm({
         />
         <div className="auth-branding__content">
           <div className="auth-branding__logo">
-            <BsClipboard2 />
-            <span className="auth-branding__logo-text">ARES</span>
+            
+            {/* <BsClipboard2 />
+            <span className="auth-branding__logo-text">ARES</span> */}
+            <img src={aresLogo} alt='Logo' />
           </div>
           <p className="auth-branding__tagline">
             Smarter Hiring Decisions, Powered by Your Preferences.

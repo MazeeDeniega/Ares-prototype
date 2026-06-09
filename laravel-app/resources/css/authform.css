@@ -27,11 +27,13 @@
 }
  
 .auth-branding__content {
-  position: relative;
+  /* position: relative; */
   z-index: 1;
 }
  
 .auth-branding__logo {
+  width: 100%;
+  height: auto;
   display: flex;
   align-items: center;
   gap: var(--space-sm);
