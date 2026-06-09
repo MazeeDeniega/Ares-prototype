@@ -1,9 +1,9 @@
 import { useState } from 'react';
-import NavBar from '../components/NavBar';
-import './styles/joblist.css'
+import { Link } from 'react-router-dom';
+import '../../css/joblist.css'
 
 export default function JobList() {
-  const { user, jobs } = window.__LARAVEL__ ?? {};
+  const { jobs } = window.__LARAVEL__ ?? {};
   const [jobList] = useState(jobs ?? []);
 
   const truncate = (text, length = 200) =>
@@ -11,9 +11,47 @@ export default function JobList() {
 
   return (
     <>
-    <div className='job-list-body'>
-          <NavBar name="to ARES!"/>
-      
+    <div className="job-openings-page">
+ 
+      {/* Heading*/}
+      <header className="job-openings-header">
+        <h1 className="job-openings-header__title">Current Job Openings</h1>
+        <p className="job-openings-header__subtitle">
+          See a job that fits you? Apply now!
+        </p>
+      </header>
+ 
+      {/* Job list */}
+      <section className="job-openings-list" aria-label="Job listings">
+
+        {jobList.length > 0 ? (
+        jobList.map((job) => (
+        <article className="job-card" key={job.id}>
+          <h2 className="job-card__title"><a href={`/jobs/${job.id}`}>{job.title}</a></h2>
+    
+          <div className="job-card__meta">
+            <span className="job-card__meta-label">Posted by:</span>
+            <span className="job-card__meta-value">{job.user?.name ?? 'Unknown'}</span>
+          </div>
+    
+          <p className="job-card__description">{job.description}</p>
+    
+          <div className="job-card__footer">
+            <a href={`/apply/${job.id}`}>
+            <button className="job-card__apply-btn">
+              Apply now
+            </button>
+            </a>
+          </div>
+        </article>
+        ))) : (<p>No jobs available.</p>) }
+      </section>
+ 
+    </div>
+
+
+    {/* <div className='job-list-body'>
+
     <div className="job-list-main-cont">
       <div className="job-list-header">
         <h2>Available Jobs</h2>
@@ -44,7 +82,7 @@ export default function JobList() {
         <p>No jobs available.</p>
       )}
       </div>
-    </div>
+    </div> */}
     </>
   );
 }

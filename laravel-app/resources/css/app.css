@@ -11,11 +11,12 @@
         'Segoe UI Symbol', 'Noto Color Emoji';
 }
 :root {
-  --color-primary:        #3b82f6;
+  --color-primary:        #8DBEFF;/* #3b82f6; */
   --color-primary-dark:   #1d4ed8;
   --color-primary-light:  #93c5fd;
   --color-primary-hover:  #2563eb;
  
+  --color-bg-primary:     #E8ECFF;
   --color-bg-white:       #ffffff;
   --color-bg-overlay:     rgba(255, 255, 255, 0.92);
  

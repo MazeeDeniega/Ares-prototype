@@ -3,6 +3,7 @@ import './styles/navbar.css';
 
 export default function NavBar(props) {
   const { user, csrf } = window.__LARAVEL__;
+  console.log(user);
 
   const handleLogout = async () => {
     await fetch('/logout', {
