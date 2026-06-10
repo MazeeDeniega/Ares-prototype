@@ -44,7 +44,7 @@ export default function JobList() {
             </a>
           </div>
         </article>
-        ))) : (<p>No jobs available.</p>) }
+        ))) : (<p>No jobs available, try refreshing the Page.</p>) }
       </section>
  
     </div>
