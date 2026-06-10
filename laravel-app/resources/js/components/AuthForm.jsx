@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom'
 import { BsClipboard2 } from "react-icons/bs";
 import bgimg from '../assets/blue_bg.png';
 import aresLogo from '../assets/ares_logo_blue.png'
-import '../../css/authform.css';
+import '../../css/components/authform.css';
 
 export default function AuthForm({
   title,
