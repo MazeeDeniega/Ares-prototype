@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import '../../css/joblist.css'
+import '../../css/pages/joblist.css'
 
 export default function JobList() {
   const { jobs } = window.__LARAVEL__ ?? {};
