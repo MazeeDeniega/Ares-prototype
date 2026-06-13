@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { BsArrowLeft } from 'react-icons/bs';
 import '../../css/pages/joblist.css'
 
 export default function JobList() {
@@ -12,9 +13,13 @@ export default function JobList() {
   return (
     <>
     <div className="job-openings-page">
- 
+
       {/* Heading*/}
       <header className="job-openings-header">
+        <Link to="/login" className="job-openings-back">
+              <BsArrowLeft />
+              Log in
+        </Link>
         <h1 className="job-openings-header__title">Current Job Openings</h1>
         <p className="job-openings-header__subtitle">
           See a job that fits you? Apply now!

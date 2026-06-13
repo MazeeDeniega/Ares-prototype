@@ -10,6 +10,18 @@
   background: var(--color-primary);
   padding: var(--space-xl) var(--space-3xl);
 }
+
+.job-openings-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-primary-dark);
+  text-decoration: none;
+  width: fit-content;
+  transition: opacity var(--transition-fast);
+}
  
 .job-openings-header__title {
   font-family: var(--font-display);
