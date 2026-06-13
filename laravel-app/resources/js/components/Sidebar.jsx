@@ -74,7 +74,7 @@ export default function Sidebar({ isOpen, onClose }) {
       <div className={`sidebar sidebar--drawer${isOpen ? ' sidebar--drawer-open' : ''}`}>
         {/* Reuse the same inner content */}
         <div className="sidebar__brand">
-          <span className="sidebar__brand-icon"><BrandIcon /></span>
+          <span className="sidebar__brand-icon"><BsPeopleFill /></span>
           <span className="sidebar__brand-name">ARES Logo</span>
         </div>
         <nav className="sidebar__nav" aria-label="Main navigation">

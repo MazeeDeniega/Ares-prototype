@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import './styles/dashboardadmin.css';
+import DashboardLayout from "../layouts/DashboardLayout";
 import NavBar from "../components/NavBar";
 
 export default function DashboardRecruiter() {
@@ -74,9 +75,8 @@ export default function DashboardRecruiter() {
 
   return (
     <>
-    <NavBar name='Recruiter'/>
-
-    <div className="rec-main-cont">
+    <DashboardLayout title="Your Jobs">
+      <div className="rec-main-cont">
       <br />
       <div className="rec-inner-cont">
         <div className="heading-rec-cont">
@@ -175,6 +175,7 @@ export default function DashboardRecruiter() {
       )}
       
     </div>
+    </DashboardLayout>
     </>
   );
 }
