@@ -34,7 +34,7 @@ export default function JobList() {
             <span className="job-card__meta-value">{job.user?.name ?? 'Unknown'}</span>
           </div>
     
-          <p className="job-card__description">{job.description}</p>
+          <p className="job-card__description">{truncate(job.description)}</p>
     
           <div className="job-card__footer">
             <a href={`/apply/${job.id}`}>
