@@ -1,6 +1,7 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { BsSliders, BsPeopleFill, BsFillGridFill, BsBoxArrowLeft } from 'react-icons/bs';
+import aresLogo from '../assets/ares_logo_blue.png';
 import '../../css/components/sidebar.css';
 
 export default function Sidebar({ isOpen, onClose }) {
@@ -10,6 +11,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
 
   const handleLogout = (async) => {
+    // This stopped working after ui update
     // await fetch('/logout', {
     //   method: 'POST',
     //   headers: { 'X-CSRF-TOKEN': csrf}
@@ -18,17 +20,17 @@ export default function Sidebar({ isOpen, onClose }) {
   };
 
   const navItems = [
-    { label: 'Job List', to: '/jobs', icon: <GridIcon /> },
-    { label: 'All Candidates', to: '/candidates', icon: <UsersIcon /> }, // Not in routes yet
-    { label: 'Default Preferences', to: '/preferences/edit', icon: <SlidersIcon /> },
+    { label: 'Job List', to: '/recruiter', icon: <BsFillGridFill /> },
+    { label: 'All Candidates', to: '/candidates', icon: <BsPeopleFill /> }, // Not in routes yet
+    { label: 'Default Preferences', to: '/preferences/edit', icon: <BsSliders /> },
   ];
 
   const sidebarContent = (
     <aside className="sidebar">
       {/* Brand */}
       <div className="sidebar__brand">
-        <span className="sidebar__brand-icon"><BrandIcon /></span>
-        <span className="sidebar__brand-name">ARES Logo</span>
+        <span className="sidebar__brand-icon"><BsSliders /></span>
+        <span className="sidebar__brand-name">ARES Placeholder</span>
       </div>
 
       {/* Nav */}
@@ -50,7 +52,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
       {/* Log out */}
       <button className="sidebar__logout" onClick={handleLogout}>
-        <span className="sidebar__nav-icon"><LogoutIcon /></span>
+        <span className="sidebar__nav-icon"><BsBoxArrowLeft /></span>
         Log out
       </button>
     </aside>

@@ -17,9 +17,9 @@ export default function DashboardLayout({ title, subtitle, actions, children }) 
     <div className="dashboard-layout">
 
       {/* Desktop: static sidebar */}
-      <div className="dashboard-layout__sidebar">
+      {/* <div className="dashboard-layout__sidebar">
         <Sidebar isOpen={false} onClose={() => {}} />
-      </div>
+      </div> */}
 
       {/* Mobile: overlay drawer */}
       <Sidebar
