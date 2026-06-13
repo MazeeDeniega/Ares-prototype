@@ -4,6 +4,11 @@ debug_routes.py
 Flask Blueprint for the ARES NLP debug panel.
 Registered in nlp_api.py — not imported directly.
 
+All scoring logic lives in nlp_api.py. This file only handles:
+  • HTTP routing
+  • HTML/CSS/JS for the two debug UIs
+  • Assembling the debug-only 'meta' overlay on top of the core payload
+
 Routes:
   GET  /              → interactive debug UI (paste text)
   POST /debug         → JSON endpoint used by the UI
@@ -21,212 +26,13 @@ debug_bp = Blueprint('debug', __name__)
 
 
 def _core():
-    import sys, os
+    """Lazy import of nlp_api to avoid circular import at module load time."""
+    import sys
     here = os.path.dirname(os.path.abspath(__file__))
     if here not in sys.path:
         sys.path.insert(0, here)
     import nlp_api
     return nlp_api
-
-
-# ---------------------------------------------------------------------------
-# Shared constants
-# ---------------------------------------------------------------------------
-_BULLET_CHARS = ('•', '-', '*', '–', '·', '\uf0a7', '\uf0b7', '\uf0d8', '\uf0fc')
-
-_ACTION_VERBS = [
-    'managed', 'led', 'developed', 'designed', 'implemented', 'coordinated',
-    'achieved', 'improved', 'created', 'built', 'analyzed', 'delivered',
-    'executed', 'established', 'maintained', 'supported', 'resolved',
-    'collaborated', 'spearheaded', 'optimized', 'streamlined', 'launched',
-    'trained', 'mentored', 'oversaw', 'directed', 'produced', 'increased',
-]
-
-_INFORMAL_MARKERS = [
-    'i am', "i'm", "i've", "i'll", 'gonna', 'wanna', 'kinda',
-    'lol', 'btw', 'etc etc', 'stuff', 'things', 'lots of',
-]
-
-_HEADING_RE = re.compile(
-    r'^(EDUCATION|EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
-    r'|TRAINING|WORK HISTORY|EMPLOYMENT|PROFESSIONAL|TECHNICAL|RELEVANT'
-    r'|INTERNSHIP|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)',
-    re.IGNORECASE,
-)
-
-
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-def _extract_debug_meta(resume_raw: str, page_count) -> dict:
-    lines        = resume_raw.splitlines()
-    text         = resume_raw.lower()
-    bullet_lines = [l for l in lines if l.strip().startswith(_BULLET_CHARS)]
-    blank_lines  = [l for l in lines if l.strip() == '']
-    found_verbs  = [v for v in _ACTION_VERBS if v in text]
-
-    heading_lines = [
-        l for l in lines if l.strip() and (
-            _HEADING_RE.match(l.strip()) or
-            (l.strip().isupper() and 2 <= len(l.strip().split()) <= 5
-             and not re.search(r'[\d@]', l))
-        )
-    ]
-
-    header_text = ' '.join(lines[:15]).lower()
-    has_email   = bool(re.search(r'[\w.\-]+@[\w.\-]+\.\w+', header_text))
-    has_phone   = bool(re.search(r'[\d\s\-\+\(\)]{7,}', header_text))
-
-    years_found  = re.findall(r'\b(20\d{2}|19\d{2})\b', resume_raw)
-    years_int    = list(map(int, years_found)) if years_found else []
-
-    found_informal      = [m for m in _INFORMAL_MARKERS if m in text]
-    content_lines       = [l.strip() for l in lines if len(l.strip().split()) > 2]
-    long_lines_count    = sum(1 for l in content_lines if len(l.split()) > 35)
-    special_chars_count = len(re.findall(r'[█▓▒░▄▀■□◆◇★☆]', resume_raw))
-
-    return {
-        'word_count':             len(text.split()),
-        'page_count':             page_count,
-        'blank_ratio':            round(len(blank_lines) / max(len(lines), 1), 3),
-        'bullet_line_count':      len(bullet_lines),
-        'heading_line_count':     len(heading_lines),
-        'action_verbs_found':     found_verbs,
-        'has_email':              has_email,
-        'has_phone':              has_phone,
-        'detected_sections':      [l.strip() for l in heading_lines],
-        'date_range': {
-            'earliest': min(years_int) if years_int else None,
-            'latest':   max(years_int) if years_int else None,
-            'all':      sorted(set(years_int)),
-        },
-        'informal_markers_found': found_informal,
-        'long_lines_count':       long_lines_count,
-        'special_chars_count':    special_chars_count,
-    }
-
-
-def _tfidf_top_terms(resume: str, job: str, n: int = 10) -> list:
-    """Return top overlapping TF-IDF terms between resume and job as [{term, score}]."""
-    try:
-        from sklearn.feature_extraction.text import TfidfVectorizer
-        import numpy as np
-        vec = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, stop_words='english')
-        mat = vec.fit_transform([resume, job])
-        names  = vec.get_feature_names_out()
-        r_vec  = mat[0].toarray()[0]
-        j_vec  = mat[1].toarray()[0]
-        # Only terms present in both
-        both   = np.minimum(r_vec, j_vec)
-        top_idx = both.argsort()[::-1][:n]
-        return [
-            {'term': names[i], 'score': round(float(both[i]), 4)}
-            for i in top_idx if both[i] > 0
-        ]
-    except Exception:
-        return []
-
-
-def _sem_interpretation(score: float) -> str:
-    if score >= 0.75: return 'Very Strong'
-    if score >= 0.55: return 'Strong'
-    if score >= 0.35: return 'Moderate'
-    return 'Weak'
-
-
-def _score_resume(resume_raw: str, job_raw: str, page_count,
-                  kw: int = 40, sem: int = 60) -> dict:
-    m = _core()
-
-    resume = m.normalize_text(resume_raw)
-    job    = m.normalize_text(job_raw)
-
-    total_blend    = (kw + sem) or 100
-    tfidf_score    = m.compute_tfidf_similarity(resume, job)
-    semantic_score = m.compute_semantic_similarity(resume, job)
-    combined       = round(
-        (tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3
-    )
-
-    # Step-by-step similarity breakdown for debug display
-    has_job = bool(job.strip())
-    tfidf_contrib  = round(tfidf_score    * kw  / total_blend, 4)
-    sem_contrib    = round(semantic_score * sem / total_blend, 4)
-    sim_steps = {
-        'has_job':          has_job,
-        'tfidf_raw':        round(tfidf_score,    4),
-        'tfidf_weight':     kw,
-        'tfidf_contrib':    tfidf_contrib,
-        'semantic_raw':     round(semantic_score, 4),
-        'semantic_weight':  sem,
-        'semantic_contrib': sem_contrib,
-        'combined':         combined,
-        'semantic_label':   _sem_interpretation(semantic_score) if has_job else '—',
-        'top_terms':        _tfidf_top_terms(resume, job) if has_job else [],
-        'resume_word_count': len(resume.split()),
-        'job_word_count':    len(job.split()) if has_job else 0,
-    }
-
-    matched_skills       = m.match_skills(resume, job)
-    job_skills_extracted = m.extract_skills_from_job(job) if job.strip() else []
-    skill_gap            = [s for s in job_skills_extracted if s not in resume]
-
-    exp_years_raw = re.findall(r'(\d+)\s+years?', resume)
-    years_exp     = max(map(int, exp_years_raw)) if exp_years_raw else 0
-    if 'project' in resume and years_exp == 0:
-        years_exp = 1
-
-    education_score, education_level = 0, 'none detected'
-    if 'master'      in resume: education_score, education_level = 1.0, 'master'
-    elif 'bachelor'  in resume: education_score, education_level = 0.7, 'bachelor'
-    elif 'associate' in resume: education_score, education_level = 0.5, 'associate'
-
-    cert_score, cert_level = 0, 'none detected'
-    if 'certification' in resume or 'certified' in resume:
-        cert_score, cert_level = 1.0, 'certified'
-    elif 'training' in resume:
-        cert_score, cert_level = 0.5, 'training'
-
-    layout = m.classify_layout(resume_raw, page_count)
-
-    sim_contrib  = round(combined              * 0.35 * 100, 2)
-    exp_contrib  = round(min(years_exp, 5) / 5 * 0.20 * 100, 2)
-    edu_contrib  = round(education_score       * 0.25 * 100, 2)
-    cert_contrib = round(cert_score            * 0.10 * 100, 2)
-    qual_score   = round(sim_contrib + exp_contrib + edu_contrib + cert_contrib, 2)
-
-    return {
-        'candidate_name':       m.extract_name(resume_raw),
-        'tfidf_similarity':     tfidf_score,
-        'semantic_similarity':  semantic_score,
-        'combined_similarity':  combined,
-        'sim_steps':            sim_steps,
-        'matched_skills':       matched_skills,
-        'skill_gap':            skill_gap,
-        'job_skills_extracted': job_skills_extracted,
-        'years_experience':     years_exp,
-        'exp_years_detected':   list(map(int, exp_years_raw)),
-        'education_score':      education_score,
-        'certification_score':  cert_score,
-        'qualifications_score': qual_score,
-        'score_breakdown': {
-            'similarity':    sim_contrib,
-            'experience':    exp_contrib,
-            'education':     edu_contrib,
-            'certification': cert_contrib,
-        },
-        'presentation_score':  layout['presentation_score'],
-        'formatting_score':    layout['formatting_score'],
-        'language_score':      layout['language_score'],
-        'concise_score':       layout['concise_score'],
-        'organization_score':  layout['organization_score'],
-        'layout_feedback':     layout['layout_feedback'],
-        'resume_normalized':   resume,
-        '_meta': {
-            'education_level': education_level,
-            'cert_level':      cert_level,
-        },
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -395,7 +201,7 @@ function renderResults(d, hasJob) {
   };
 
   // ── Candidate name + qualifications total ──────────────────────────────
-  if (el('v-name'))  el('v-name').textContent  = d.candidate_name || '—';
+  if (el('v-name'))       el('v-name').textContent       = d.candidate_name || '—';
   if (el('v-qual-total')) el('v-qual-total').textContent = d.qualifications_score ?? '—';
 
   // ── 1. Job Match ────────────────────────────────────────────────────────
@@ -406,23 +212,23 @@ function renderResults(d, hasJob) {
 
   if (hasJob) {
     bar('comb',  d.combined_similarity);
-    bar('tfidf', d.tfidf_similarity,  true);
+    bar('tfidf', d.tfidf_similarity,    true);
     bar('sem',   d.semantic_similarity, true);
     if (el('v-sb-sim')) el('v-sb-sim').textContent = d.score_breakdown?.similarity ?? '—';
 
     // Step-by-step breakdown
-    const ss = d.sim_steps || {};
+    const ss   = d.sim_steps || {};
     const pct4 = v => v !== undefined ? (v * 100).toFixed(1) + '%' : '—';
 
-    if (el('v-res-wc'))       el('v-res-wc').textContent       = ss.resume_word_count ?? '—';
-    if (el('v-job-wc'))       el('v-job-wc').textContent       = ss.job_word_count    ?? '—';
-    if (el('v-tfidf-raw'))    el('v-tfidf-raw').textContent    = pct4(ss.tfidf_raw);
-    if (el('v-tfidf-w'))      el('v-tfidf-w').textContent      = (ss.tfidf_weight ?? '—') + '%';
-    if (el('v-tfidf-contrib'))el('v-tfidf-contrib').textContent= pct4(ss.tfidf_contrib);
-    if (el('v-sem-raw'))      el('v-sem-raw').textContent      = pct4(ss.semantic_raw);
-    if (el('v-sem-w'))        el('v-sem-w').textContent        = (ss.semantic_weight ?? '—') + '% weight';
-    if (el('v-sem-contrib'))  el('v-sem-contrib').textContent  = pct4(ss.semantic_contrib);
-    if (el('v-comb-final'))   el('v-comb-final').textContent   = pct4(ss.combined);
+    if (el('v-res-wc'))        el('v-res-wc').textContent        = ss.resume_word_count ?? '—';
+    if (el('v-job-wc'))        el('v-job-wc').textContent        = ss.job_word_count    ?? '—';
+    if (el('v-tfidf-raw'))     el('v-tfidf-raw').textContent     = pct4(ss.tfidf_raw);
+    if (el('v-tfidf-w'))       el('v-tfidf-w').textContent       = (ss.tfidf_weight ?? '—') + '%';
+    if (el('v-tfidf-contrib')) el('v-tfidf-contrib').textContent = pct4(ss.tfidf_contrib);
+    if (el('v-sem-raw'))       el('v-sem-raw').textContent       = pct4(ss.semantic_raw);
+    if (el('v-sem-w'))         el('v-sem-w').textContent         = (ss.semantic_weight ?? '—') + '% weight';
+    if (el('v-sem-contrib'))   el('v-sem-contrib').textContent   = pct4(ss.semantic_contrib);
+    if (el('v-comb-final'))    el('v-comb-final').textContent    = pct4(ss.combined);
 
     // Semantic interpretation label
     const semLbl = el('v-sem-label');
@@ -444,12 +250,12 @@ function renderResults(d, hasJob) {
     }
   }
 
-  tags('v-skills',    d.matched_skills       || [], 'tag-blue', 'None matched');
-  tags('v-skill-gap', d.skill_gap            || [], 'tag-red',  hasJob ? '✓ No missing skills' : '—');
-  tags('v-job-skills',d.job_skills_extracted || [], 'tag-gray', 'None found');
-  if (el('v-skills-count'))  el('v-skills-count').textContent  = '(' + (d.matched_skills?.length  || 0) + ')';
-  if (el('v-gap-count'))     el('v-gap-count').textContent     = '(' + (d.skill_gap?.length        || 0) + ')';
-  if (el('v-jskills-count')) el('v-jskills-count').textContent = '(' + (d.job_skills_extracted?.length || 0) + ')';
+  tags('v-skills',     d.matched_skills       || [], 'tag-blue', 'None matched');
+  tags('v-skill-gap',  d.skill_gap            || [], 'tag-red',  hasJob ? '✓ No missing skills' : '—');
+  tags('v-job-skills', d.job_skills_extracted || [], 'tag-gray', 'None found');
+  if (el('v-skills-count'))  el('v-skills-count').textContent  = '(' + (d.matched_skills?.length        || 0) + ')';
+  if (el('v-gap-count'))     el('v-gap-count').textContent     = '(' + (d.skill_gap?.length             || 0) + ')';
+  if (el('v-jskills-count')) el('v-jskills-count').textContent = '(' + (d.job_skills_extracted?.length  || 0) + ')';
   const gapWrap = el('gap-wrap');
   const jsWrap  = el('js-wrap');
   if (gapWrap) gapWrap.style.display = hasJob ? '' : 'none';
@@ -468,8 +274,8 @@ function renderResults(d, hasJob) {
 
   // ── 4. Certification ────────────────────────────────────────────────────
   bar('cert', d.certification_score);
-  if (el('v-certlvl'))  el('v-certlvl').textContent  = d.debug?.cert_level || '—';
-  if (el('v-sb-cert'))  el('v-sb-cert').textContent  = d.score_breakdown?.certification ?? '—';
+  if (el('v-certlvl')) el('v-certlvl').textContent = d.debug?.cert_level || '—';
+  if (el('v-sb-cert')) el('v-sb-cert').textContent = d.score_breakdown?.certification ?? '—';
 
   // ── Presentation ────────────────────────────────────────────────────────
   bar('pres', d.presentation_score);
@@ -489,7 +295,7 @@ function renderResults(d, hasJob) {
   if (el('v-sc'))  el('v-sc').textContent  = dbg.special_chars_count;
 
   // Contact badges
-  ['email','phone'].forEach(k => {
+  ['email', 'phone'].forEach(k => {
     const b = el('v-' + k + '-badge');
     if (!b) return;
     const ok = k === 'email' ? dbg.has_email : dbg.has_phone;
@@ -530,37 +336,31 @@ function renderResults(d, hasJob) {
 
 
 # ---------------------------------------------------------------------------
-# Shared HTML blocks for the qualifications and presentation panels
-# (used by both the paste-text UI and the PDF UI so they stay in sync)
+# Shared HTML panels (kept in one place so both UIs stay identical)
 # ---------------------------------------------------------------------------
 def _qual_panel_html():
     return '''
     <div class="card">
       <div class="card-header">Qualifications &ensp; <span id="v-qual-total" style="font-size:1.4em;font-weight:bold;color:#111">—</span><span style="font-size:0.85em;color:#888">/100</span></div>
 
-      <!-- Candidate -->
       <div class="kv" style="margin-bottom:6px"><span>Candidate</span><span id="v-name">—</span></div>
 
-      <!-- NO JOB notice -->
       <div id="no-job-msg" class="small-gray" style="display:none;font-style:italic;margin-bottom:8px">
         No job description — Job Match scores not available.
       </div>
 
-      <!-- 1. JOB MATCH / SKILLS -->
+      <!-- 1. JOB MATCH -->
       <div class="section" id="jm-section">
         <div class="section-title">
           1 · Job Match &amp; Skills
           <span class="weight">(×35%)</span>
           <span class="contrib" id="v-sb-sim">—</span>
         </div>
-
-        <!-- Combined score -->
         <div class="bar-row">
           <span class="bar-lbl">Match Score</span>
           <div class="bar-bg"><div class="bar-fill" id="b-comb"></div></div>
           <span class="bar-val" id="v-comb"></span>
         </div>
-        <!-- Keyword + Semantic as sub-detail -->
         <div class="bar-row">
           <span class="bar-lbl sub">↳ Keyword (TF-IDF)</span>
           <div class="bar-bg"><div class="bar-fill muted" id="b-tfidf"></div></div>
@@ -572,53 +372,30 @@ def _qual_panel_html():
           <span class="bar-val" id="v-sem"></span>
         </div>
 
-        <!-- Matched skills -->
         <div style="margin-top:10px;font-size:0.81em;font-weight:bold;color:#374151">
           Matched Skills <span id="v-skills-count" style="font-weight:normal;color:#9ca3af"></span>
         </div>
         <div class="tags" id="v-skills"></div>
 
-        <!-- Similarity step-by-step breakdown -->
         <div class="sim-steps" id="sim-steps-block">
           <div class="step-head">Score Breakdown</div>
-          <div class="step">
-            <span>Resume word count</span>
-            <span class="step-val" id="v-res-wc">—</span>
-          </div>
-          <div class="step">
-            <span>Job description word count</span>
-            <span class="step-val" id="v-job-wc">—</span>
-          </div>
+          <div class="step"><span>Resume word count</span><span class="step-val" id="v-res-wc">—</span></div>
+          <div class="step"><span>Job description word count</span><span class="step-val" id="v-job-wc">—</span></div>
 
           <div class="step-head" style="margin-top:8px">TF-IDF (Keyword)</div>
-          <div class="step">
-            <span>Raw cosine similarity</span>
-            <span class="step-val" id="v-tfidf-raw">—</span>
-          </div>
-          <div class="step">
-            <span>Weight applied</span>
-            <span class="step-val" id="v-tfidf-w">—</span>
-          </div>
-          <div class="step">
-            <span>Contribution to match score</span>
-            <span class="step-val" id="v-tfidf-contrib">—</span>
-          </div>
+          <div class="step"><span>Raw cosine similarity</span><span class="step-val" id="v-tfidf-raw">—</span></div>
+          <div class="step"><span>Weight applied</span><span class="step-val" id="v-tfidf-w">—</span></div>
+          <div class="step"><span>Contribution to match score</span><span class="step-val" id="v-tfidf-contrib">—</span></div>
           <div style="margin-top:6px;font-size:0.88em;color:#6b7280">Top overlapping terms:</div>
           <div class="top-terms" id="v-top-terms"></div>
 
           <div class="step-head" style="margin-top:8px">Semantic (Sentence Embedding)</div>
-          <div class="step">
-            <span>Raw cosine similarity</span>
-            <span class="step-val" id="v-sem-raw">—</span>
-          </div>
+          <div class="step"><span>Raw cosine similarity</span><span class="step-val" id="v-sem-raw">—</span></div>
           <div class="step">
             <span>Interpretation <span id="v-sem-label"></span></span>
             <span class="step-val" id="v-sem-w">— weight</span>
           </div>
-          <div class="step">
-            <span>Contribution to match score</span>
-            <span class="step-val" id="v-sem-contrib">—</span>
-          </div>
+          <div class="step"><span>Contribution to match score</span><span class="step-val" id="v-sem-contrib">—</span></div>
 
           <div class="step-head" style="margin-top:8px">Final</div>
           <div class="step" style="font-weight:bold">
@@ -627,7 +404,6 @@ def _qual_panel_html():
           </div>
         </div>
 
-        <!-- Skill gap -->
         <div id="gap-wrap">
           <div style="margin-top:8px;font-size:0.81em;font-weight:bold;color:#374151">
             Skill Gap <span id="v-gap-count" style="font-weight:normal;color:#9ca3af"></span>
@@ -636,7 +412,6 @@ def _qual_panel_html():
           <div class="tags" id="v-skill-gap"></div>
         </div>
 
-        <!-- Job skills detected -->
         <div id="js-wrap">
           <div style="margin-top:8px;font-size:0.81em;font-weight:bold;color:#374151">
             Job Skills Detected <span id="v-jskills-count" style="font-weight:normal;color:#9ca3af"></span>
@@ -648,8 +423,7 @@ def _qual_panel_html():
       <!-- 2. EXPERIENCE -->
       <div class="section">
         <div class="section-title">
-          2 · Experience
-          <span class="weight">(×20%)</span>
+          2 · Experience <span class="weight">(×20%)</span>
           <span class="contrib" id="v-sb-exp">—</span>
         </div>
         <div class="bar-row">
@@ -664,8 +438,7 @@ def _qual_panel_html():
       <!-- 3. EDUCATION -->
       <div class="section">
         <div class="section-title">
-          3 · Education
-          <span class="weight">(×25%)</span>
+          3 · Education <span class="weight">(×25%)</span>
           <span class="contrib" id="v-sb-edu">—</span>
         </div>
         <div class="bar-row">
@@ -679,8 +452,7 @@ def _qual_panel_html():
       <!-- 4. CERTIFICATION -->
       <div class="section">
         <div class="section-title">
-          4 · Certification
-          <span class="weight">(×10%)</span>
+          4 · Certification <span class="weight">(×10%)</span>
           <span class="contrib" id="v-sb-cert">—</span>
         </div>
         <div class="bar-row">
@@ -690,7 +462,6 @@ def _qual_panel_html():
         </div>
         <div class="kv" style="margin-top:6px"><span>Level Detected</span><span id="v-certlvl">—</span></div>
       </div>
-
     </div>
 '''
 
@@ -700,7 +471,6 @@ def _pres_panel_html():
     <div class="card">
       <div class="card-header">Presentation Quality</div>
 
-      <!-- Overall + sub-scores -->
       <div class="section">
         <div class="section-title">Overall Score</div>
         <div class="bar-row">
@@ -732,7 +502,6 @@ def _pres_panel_html():
         </div>
       </div>
 
-      <!-- Document metadata -->
       <div class="section">
         <div class="section-title">Document Metadata</div>
         <div class="kv"><span>Word Count</span><span id="v-wc">—</span></div>
@@ -744,7 +513,6 @@ def _pres_panel_html():
         <div class="kv"><span>Special/Decorative Chars</span><span id="v-sc">—</span></div>
       </div>
 
-      <!-- Contact info -->
       <div class="section">
         <div class="section-title">Contact Info</div>
         <div class="inline-row" style="margin-top:6px">
@@ -753,20 +521,17 @@ def _pres_panel_html():
         </div>
       </div>
 
-      <!-- Structure -->
       <div class="section">
         <div class="section-title">Detected Sections</div>
         <div class="tags" id="v-sections"></div>
       </div>
 
-      <!-- Dates -->
       <div class="section">
         <div class="section-title">Date Range</div>
         <div class="kv"><span>Earliest → Latest</span><span id="v-daterange">—</span></div>
         <div class="small-gray" id="v-datelist"></div>
       </div>
 
-      <!-- Language signals -->
       <div class="section">
         <div class="section-title">Language Signals</div>
         <div class="kv"><span>Action Verbs Found</span><span id="v-av" style="font-size:0.85em;text-align:right;max-width:200px">—</span></div>
@@ -774,7 +539,6 @@ def _pres_panel_html():
         <div id="v-informal"></div>
       </div>
 
-      <!-- Feedback -->
       <div class="section">
         <div class="section-title">Feedback</div>
         <ul class="fb-list" id="v-feedback"></ul>
@@ -795,10 +559,10 @@ def debug_ui():
 <style>{_SHARED_CSS}</style>
 </head>
 <body>
-<h1>🔍 ARES NLP Debug</h1>
+<h1> ARES NLP Debug</h1>
 <div class="nav">
-  <a href="/">📋 Paste Text</a>
-  <a href="/debug">📄 Upload PDF</a>
+  <a href="/"> Paste Text</a>
+  <a href="/debug"> Upload PDF</a>
 </div>
 
 <div class="two-col" style="margin-top:0">
@@ -821,8 +585,6 @@ def debug_ui():
     {_qual_panel_html()}
     {_pres_panel_html()}
   </div>
-
-  <!-- Normalized text preview -->
   <div class="card">
     <div class="card-header">
       Normalized Text Preview &ensp;
@@ -869,11 +631,12 @@ async function analyze() {{
 
 
 # ---------------------------------------------------------------------------
-# Route: POST /debug  →  JSON endpoint
+# Route: POST /debug  →  JSON endpoint (called by paste-text UI + tests)
 # ---------------------------------------------------------------------------
 @debug_bp.route('/debug', methods=['POST'])
 def debug_analyze():
     try:
+        m          = _core()
         data       = request.get_json()
         resume_raw = data['resume']
         job_raw    = data.get('job', '')
@@ -881,8 +644,8 @@ def debug_analyze():
         kw         = int(data.get('keyword_weight',  40))
         sem        = int(data.get('semantic_weight', 60))
 
-        result = _score_resume(resume_raw, job_raw, page_count, kw, sem)
-        meta   = _extract_debug_meta(resume_raw, page_count)
+        result = m.score_resume(resume_raw, job_raw, page_count, kw, sem)
+        meta   = m.extract_debug_meta(resume_raw, page_count)
 
         return jsonify({
             **result,
@@ -910,10 +673,10 @@ def debug_form():
 </style>
 </head>
 <body>
-<h1>🔍 ARES NLP Debug</h1>
+<h1> ARES NLP Debug</h1>
 <div class="nav">
-  <a href="/">📋 Paste Text</a>
-  <a href="/debug">📄 Upload PDF</a>
+  <a href="/"> Paste Text</a>
+  <a href="/debug"> Upload PDF</a>
 </div>
 
 <div class="card" style="margin-top:0">
@@ -927,8 +690,6 @@ def debug_form():
 </div>
 
 <div id="results">
-
-  <!-- Score overview -->
   <div class="card">
     <div class="card-header">Scores Overview</div>
     <div class="score-grid">
@@ -942,13 +703,11 @@ def debug_form():
     {_pres_panel_html()}
   </div>
 
-  <!-- Extracted text -->
   <div class="card">
     <div class="card-header">Extracted Text</div>
     <div class="extracted" id="v-text"></div>
   </div>
 
-  <!-- Normalized text preview -->
   <div class="card">
     <div class="card-header">
       Normalized Text Preview &ensp;
@@ -1009,6 +768,7 @@ def debug_analyse():
     try:
         from pdfminer.high_level import extract_text
 
+        m        = _core()
         pdf_file = request.files.get('pdf')
         job_text = request.form.get('job', '')
         kw       = int(request.form.get('keyword_weight',  40))
@@ -1030,8 +790,8 @@ def debug_analyse():
         finally:
             os.unlink(tmp_path)
 
-        result = _score_resume(extracted_text, job_text, page_count, kw, sem)
-        meta   = _extract_debug_meta(extracted_text, page_count)
+        result = m.score_resume(extracted_text, job_text, page_count, kw, sem)
+        meta   = m.extract_debug_meta(extracted_text, page_count)
 
         return jsonify({
             **result,
