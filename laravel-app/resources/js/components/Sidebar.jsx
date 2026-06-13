@@ -10,12 +10,12 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const navigate = useNavigate();
 
-  const handleLogout = (async) => {
+  const handleLogout = async () => {
     // This stopped working after ui update
-    // await fetch('/logout', {
-    //   method: 'POST',
-    //   headers: { 'X-CSRF-TOKEN': csrf}
-    // });
+    await fetch('/logout', {
+      method: 'POST',
+      headers: { 'X-CSRF-TOKEN': csrf}
+    });
     navigate('/login');
   };
 
