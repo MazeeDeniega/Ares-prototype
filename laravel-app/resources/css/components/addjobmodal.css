@@ -173,15 +173,15 @@
     height: 100dvh;
   }
 
-  /* Mobile top bar mirrors the mockup:
-     ← (back)   ↩ ↪ (undo/redo)   💾 (save) */
+  /* Mobile top bar:
+    (back) (undo/redo) (save) */
   .modal-mobile-bar {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
-    background: var(--color-bg-hero);
-    border-bottom: 1.5px solid var(--color-border);
+    background: var(--color-primary);
+    border-bottom: 1.5px solid var(--color-primary-dark);
     flex-shrink: 0;
   }
 

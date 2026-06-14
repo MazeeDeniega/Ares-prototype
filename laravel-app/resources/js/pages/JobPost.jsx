@@ -1,9 +1,20 @@
 import '../../css/pages/jobpost.css';
-import { Link } from 'react-router';
+import { Link } from 'react-router-dom';
 import { BsArrowLeft } from 'react-icons/bs';
 
 export default function JobPost() {
   const { job, user } = window.__LARAVEL__ ?? {};
+
+  console.log(job);
+
+  if (!job) {
+    return (
+      <div className='job-desc-page'>
+        <p className='job-desc-state'>Job not found.</p>
+      </div>
+    );
+  }
+  const htmlContent = job.description;
 
   return (
     <>
@@ -12,10 +23,10 @@ export default function JobPost() {
   
           {/* header */}
           <div className="job-desc-hero">
-            <Link to="/jobs" className="job-desc-back">
+            <a href="/jobs" className="job-desc-back">
               <BsArrowLeft />
               Job Openings
-            </Link>
+            </a>
   
             <h1 className="job-desc-title">{job?.title}</h1>
   
@@ -29,7 +40,11 @@ export default function JobPost() {
   
           <div className="job-desc-body">
             {/* Main description paragraph */}
-            {job?.description && <p>{job?.description}</p>}
+            <div
+            className="job-desc-quill-content ql-editor"
+            dangerouslySetInnerHTML={{ __html: htmlContent }}
+            />
+            {/* {job?.description && <p>{job?.description}</p>} */}
   
   
             {/* Apply button */}

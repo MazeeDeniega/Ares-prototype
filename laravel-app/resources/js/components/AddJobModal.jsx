@@ -105,6 +105,7 @@ export default function AddJobModal({ isOpen, onClose, onSave }) {
       await onSave({ title: title.trim(), description: html });
       onClose();
     } catch (err) {
+      console.log({title, html});
       console.error('Save failed:', err);
     } finally {
       setSaving(false);

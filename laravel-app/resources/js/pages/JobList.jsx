@@ -7,6 +7,12 @@ export default function JobList() {
   const { jobs } = window.__LARAVEL__ ?? {};
   const [jobList] = useState(jobs ?? []);
 
+  const stripHtml = (html) => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div. innerText || '';
+  }
+
   const truncate = (text, length = 200) =>
       text.length > length ? text.slice(0, length) + '...' : text;
 
@@ -39,7 +45,7 @@ export default function JobList() {
             <span className="job-card__meta-value">{job.user?.name ?? 'Unknown'}</span>
           </div>
     
-          <p className="job-card__description">{truncate(job.description)}</p>
+          <p className="job-card__description">{truncate(stripHtml(job.description))}</p>
     
           <div className="job-card__footer">
             <a href={`/apply/${job.id}`}>

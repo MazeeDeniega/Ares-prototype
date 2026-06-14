@@ -14,7 +14,6 @@ export default function DashboardRecruiter() {
   // const [error, setError] = useState('');
   console.log(jobs);
 
-
   const stripHtml = (html) => {
     const div = document.createElement('div');
     div.innerHTML = html;
@@ -23,8 +22,7 @@ export default function DashboardRecruiter() {
 
   // add job 
   const handleAddJob = async ({ title, description }) => {
-    // e.preventDefault();
-    // const form = e.target;
+    console.log(title, description)
 
     const response = await fetch("/jobs", {
       method: "POST",
@@ -39,12 +37,11 @@ export default function DashboardRecruiter() {
     });
 
     if (response.ok || response.redirected) {
-      window.location.reload(); // Jobs only get updated after reloading, need fix
+      window.reload();
       console.log('job added');
     } else {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.message ?? 'Failed to save');
-      console.log("Failed to add job");
     }
 
     // if (response.ok || response.redirected) {
