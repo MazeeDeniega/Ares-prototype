@@ -141,9 +141,12 @@ ALIAS_MAP = {
 }
 
 def normalize_text(text: str) -> str:
+    """Lower-case and expand known aliases to canonical skill names."""
     text = text.lower()
+    # Sort by length descending so longer aliases (e.g. "ruby on rails") match before
+    # shorter substrings (e.g. "rails").
     for alias, canonical in sorted(ALIAS_MAP.items(), key=lambda x: -len(x[0])):
-        text = text.replace(str(re.search(str(alias), text)), canonical)
+        text = text.replace(alias, canonical)
     return text
 
 
@@ -187,6 +190,25 @@ def compute_tfidf_similarity(resume_text: str, job_text: str) -> float:
         return 0.0
 
 
+def tfidf_top_terms(resume: str, job: str, n: int = 10) -> list:
+    """Return top overlapping TF-IDF terms between resume and job as [{term, score}]."""
+    try:
+        import numpy as np
+        vec = TfidfVectorizer(ngram_range=(1, 2), sublinear_tf=True, stop_words='english')
+        mat = vec.fit_transform([resume, job])
+        names = vec.get_feature_names_out()
+        r_vec = mat[0].toarray()[0]
+        j_vec = mat[1].toarray()[0]
+        both  = np.minimum(r_vec, j_vec)
+        top_idx = both.argsort()[::-1][:n]
+        return [
+            {'term': names[i], 'score': round(float(both[i]), 4)}
+            for i in top_idx if both[i] > 0
+        ]
+    except Exception:
+        return []
+
+
 # ---------------------------------------------------------------------------
 # SEMANTIC SIMILARITY
 # ---------------------------------------------------------------------------
@@ -199,6 +221,13 @@ def compute_semantic_similarity(resume_text: str, job_text: str) -> float:
         return round(float(similarity), 3)
     except Exception:
         return 0.0
+
+
+def sem_interpretation(score: float) -> str:
+    if score >= 0.75: return 'Very Strong'
+    if score >= 0.55: return 'Strong'
+    if score >= 0.35: return 'Moderate'
+    return 'Weak'
 
 
 # ---------------------------------------------------------------------------
@@ -409,9 +438,201 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         "presentation_score":  presentation_score,
         "formatting_score":    formatting_score,
         "language_score":      language_score,
-        "concise_score":       concise_score,      
+        "concise_score":       concise_score,
         "organization_score":  organization_score,
         "layout_feedback":     feedback,
+    }
+
+
+# ---------------------------------------------------------------------------
+# SHARED CORE SCORING  (used by both /analyze and debug_routes)
+# ---------------------------------------------------------------------------
+def score_resume(resume_raw: str, job_raw: str, page_count,
+                 kw: int = 40, sem: int = 60,
+                 presentation_weights: dict = None) -> dict:
+    """
+    Single source of truth for all resume scoring.
+    Returns the full payload consumed by both /analyze and the debug panel.
+    """
+    if presentation_weights is None:
+        presentation_weights = {}
+
+    resume = normalize_text(resume_raw)
+    job    = normalize_text(job_raw)
+
+    has_job     = bool(job.strip())
+    total_blend = (kw + sem) or 100
+
+    tfidf_score    = compute_tfidf_similarity(resume, job)
+    semantic_score = compute_semantic_similarity(resume, job)
+    combined       = round(
+        (tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3
+    )
+
+    tfidf_contrib = round(tfidf_score    * kw  / total_blend, 4)
+    sem_contrib   = round(semantic_score * sem / total_blend, 4)
+
+    sim_steps = {
+        'has_job':           has_job,
+        'tfidf_raw':         round(tfidf_score,    4),
+        'tfidf_weight':      kw,
+        'tfidf_contrib':     tfidf_contrib,
+        'semantic_raw':      round(semantic_score, 4),
+        'semantic_weight':   sem,
+        'semantic_contrib':  sem_contrib,
+        'combined':          combined,
+        'semantic_label':    sem_interpretation(semantic_score) if has_job else '—',
+        'top_terms':         tfidf_top_terms(resume, job) if has_job else [],
+        'resume_word_count': len(resume.split()),
+        'job_word_count':    len(job.split()) if has_job else 0,
+    }
+
+    matched_skills       = match_skills(resume, job)
+    job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
+    skill_gap            = [s for s in job_skills_extracted if s not in resume]
+
+    exp_years_raw = re.findall(r'(\d+)\s+years?', resume)
+    years_exp     = max(map(int, exp_years_raw)) if exp_years_raw else 0
+    if 'project' in resume and years_exp == 0:
+        years_exp = 1
+
+    education_score, education_level = 0, 'none detected'
+    if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
+        education_score, education_level = 1.0, 'master'
+    elif re.search(r"\bbachelor'?s?\b|\bb\.?s\.?\b|\bb\.?a\.?\b|\bbachelor of\b", resume):
+        education_score, education_level = 0.7, 'bachelor'
+    elif re.search(r"\bassociate'?s?\b|\bassociate of\b|\bassociate degree\b", resume):
+        education_score, education_level = 0.5, 'associate'
+
+    cert_score, cert_level = 0, 'none detected'
+    if 'certification' in resume or 'certified' in resume:
+        cert_score, cert_level = 1.0, 'certified'
+    elif 'training' in resume:
+        cert_score, cert_level = 0.5, 'training'
+
+    layout = classify_layout(resume_raw, page_count, presentation_weights)
+
+    # Qualifications score (fixed weights — matches ScreeningController defaults)
+    sim_contrib  = round(combined              * 0.35 * 100, 2)
+    exp_contrib  = round(min(years_exp, 5) / 5 * 0.20 * 100, 2)
+    edu_contrib  = round(education_score       * 0.25 * 100, 2)
+    cert_contrib = round(cert_score            * 0.10 * 100, 2)
+    qual_score   = round(sim_contrib + exp_contrib + edu_contrib + cert_contrib, 2)
+
+    return {
+        # Identity
+        'candidate_name':        extract_name(resume_raw),
+        # Similarity
+        'tfidf_similarity':      tfidf_score,
+        'semantic_similarity':   semantic_score,
+        'combined_similarity':   combined,
+        'sim_steps':             sim_steps,
+        # Skills
+        'matched_skills':        matched_skills,
+        'skill_gap':             skill_gap,
+        'job_skills_extracted':  job_skills_extracted,
+        # Experience
+        'years_experience':      years_exp,
+        'exp_years_detected':    list(map(int, exp_years_raw)),
+        # Education / Cert
+        'education_score':       education_score,
+        'certification_score':   cert_score,
+        # Qualifications roll-up
+        'qualifications_score':  qual_score,
+        'score_breakdown': {
+            'similarity':    sim_contrib,
+            'experience':    exp_contrib,
+            'education':     edu_contrib,
+            'certification': cert_contrib,
+        },
+        # Presentation
+        'presentation_score':    layout['presentation_score'],
+        'formatting_score':      layout['formatting_score'],
+        'language_score':        layout['language_score'],
+        'concise_score':         layout['concise_score'],
+        'organization_score':    layout['organization_score'],
+        'layout_feedback':       layout['layout_feedback'],
+        # Normalized text (useful for debug)
+        'resume_normalized':     resume,
+        # Internal metadata (used by debug panel; safe to expose)
+        '_meta': {
+            'education_level': education_level,
+            'cert_level':      cert_level,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# SHARED DEBUG METADATA  (document-level stats for the debug panel)
+# ---------------------------------------------------------------------------
+_BULLET_CHARS = ('•', '-', '*', '–', '·', '\uf0a7', '\uf0b7', '\uf0d8', '\uf0fc')
+
+_ACTION_VERBS = [
+    'managed', 'led', 'developed', 'designed', 'implemented', 'coordinated',
+    'achieved', 'improved', 'created', 'built', 'analyzed', 'delivered',
+    'executed', 'established', 'maintained', 'supported', 'resolved',
+    'collaborated', 'spearheaded', 'optimized', 'streamlined', 'launched',
+    'trained', 'mentored', 'oversaw', 'directed', 'produced', 'increased',
+]
+
+_INFORMAL_MARKERS = [
+    'i am', "i'm", "i've", "i'll", 'gonna', 'wanna', 'kinda',
+    'lol', 'btw', 'etc etc', 'stuff', 'things', 'lots of',
+]
+
+_HEADING_RE = re.compile(
+    r'^(EDUCATION|EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
+    r'|TRAINING|WORK HISTORY|EMPLOYMENT|PROFESSIONAL|TECHNICAL|RELEVANT'
+    r'|INTERNSHIP|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)',
+    re.IGNORECASE,
+)
+
+def extract_debug_meta(resume_raw: str, page_count) -> dict:
+    """Document-level statistics used exclusively by the debug panel."""
+    lines        = resume_raw.splitlines()
+    text         = resume_raw.lower()
+    bullet_lines = [l for l in lines if l.strip().startswith(_BULLET_CHARS)]
+    blank_lines  = [l for l in lines if l.strip() == '']
+    found_verbs  = [v for v in _ACTION_VERBS if v in text]
+
+    heading_lines = [
+        l for l in lines if l.strip() and (
+            _HEADING_RE.match(l.strip()) or
+            (l.strip().isupper() and 2 <= len(l.strip().split()) <= 5
+             and not re.search(r'[\d@]', l))
+        )
+    ]
+
+    header_text = ' '.join(lines[:15]).lower()
+    has_email   = bool(re.search(r'[\w.\-]+@[\w.\-]+\.\w+', header_text))
+    has_phone   = bool(re.search(r'[\d\s\-\+\(\)]{7,}', header_text))
+
+    years_found = re.findall(r'\b(20\d{2}|19\d{2})\b', resume_raw)
+    years_int   = list(map(int, years_found)) if years_found else []
+
+    found_informal   = [m for m in _INFORMAL_MARKERS if m in text]
+    content_lines    = [l.strip() for l in lines if len(l.strip().split()) > 2]
+    long_lines_count = sum(1 for l in content_lines if len(l.split()) > 35)
+    special_chars    = len(re.findall(r'[█▓▒░▄▀■□◆◇★☆]', resume_raw))
+
+    return {
+        'word_count':             len(text.split()),
+        'page_count':             page_count,
+        'blank_ratio':            round(len(blank_lines) / max(len(lines), 1), 3),
+        'bullet_line_count':      len(bullet_lines),
+        'heading_line_count':     len(heading_lines),
+        'action_verbs_found':     found_verbs,
+        'has_email':              has_email,
+        'has_phone':              has_phone,
+        'detected_sections':      [l.strip() for l in heading_lines],
+        'date_range': {
+            'earliest': min(years_int) if years_int else None,
+            'latest':   max(years_int) if years_int else None,
+            'all':      sorted(set(years_int)),
+        },
+        'informal_markers_found': found_informal,
+        'long_lines_count':       long_lines_count,
+        'special_chars_count':    special_chars,
     }
 
 
@@ -424,60 +645,17 @@ def analyze():
 
     resume_raw = data.get('resume', '')
     job_raw    = data.get('job', '')
+    page_count = data.get('page_count', None)
+    kw         = int(data.get('keyword_weight',  40))
+    sem        = int(data.get('semantic_weight', 60))
+    pres_w     = data.get('presentation_weights', {})
 
-    resume = normalize_text(resume_raw)
-    job    = normalize_text(job_raw)
+    result = score_resume(resume_raw, job_raw, page_count, kw, sem, pres_w)
 
-    kw          = int(data.get('keyword_weight',  40))
-    sem         = int(data.get('semantic_weight', 60))
-    total_blend = (kw + sem) or 100
+    # Strip internal-only key before sending to Laravel
+    result.pop('_meta', None)
 
-    tfidf_score    = compute_tfidf_similarity(resume, job)
-    semantic_score = compute_semantic_similarity(resume, job)
-    combined_similarity = round(
-        (tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3
-    )
-
-    matched_skills = match_skills(resume, job)
-
-    years     = re.findall(r'(\d+)\s+years?', resume)
-    years_exp = max(map(int, years)) if years else 0
-    if "project" in resume and years_exp == 0:
-        years_exp = 1
-
-    education_score = 0
-    if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
-        education_score = 1.0
-    elif re.search(r"\bbachelor'?s?\b|\bb\.?s\.?\b|\bb\.?a\.?\b|\bbachelor of\b", resume):
-        education_score = 0.7
-    elif re.search(r"\bassociate'?s?\b|\bassociate of\b|\bassociate degree\b", resume):
-        education_score = 0.5
-
-    cert_score = 0
-    if 'certification' in resume or 'certified' in resume: cert_score = 1.0
-    elif 'training' in resume:                              cert_score = 0.5
-
-    page_count           = data.get('page_count', None)
-    presentation_weights = data.get('presentation_weights', {})
-    layout_data          = classify_layout(resume_raw, page_count, presentation_weights)
-
-    
-    # Return JSON response
-    return jsonify({
-        "matched_skills":      matched_skills,
-        "years_experience":    years_exp,
-        "tfidf_similarity":    tfidf_score,
-        "semantic_similarity": semantic_score,
-        "combined_similarity": combined_similarity,
-        "education_score":     education_score,
-        "certification_score": cert_score,
-        "presentation_score":  layout_data["presentation_score"],
-        "formatting_score":    layout_data["formatting_score"],
-        "language_score":      layout_data["language_score"],
-        "concise_score":       layout_data["concise_score"],
-        "organization_score":  layout_data["organization_score"],
-        "layout_feedback":     layout_data["layout_feedback"],
-    })
+    return jsonify(result)
 
 
 @app.route('/health', methods=['GET'])

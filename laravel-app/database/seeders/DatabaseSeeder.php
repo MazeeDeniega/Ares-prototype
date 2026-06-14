@@ -75,7 +75,7 @@ class DatabaseSeeder extends Seeder
             'user_id'             => $recruiter->id,
             'keyword_weight'      => 40,
             'semantic_weight'     => 60,
-            'skills_weight'       => 35,
+            'skills_weight'       => 45,
             'experience_weight'   => 20,
             'education_weight'    => 25,
             'cert_weight'         => 10,
