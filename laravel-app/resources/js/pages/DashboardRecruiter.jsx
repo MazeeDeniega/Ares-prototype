@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router";
 import './styles/dashboardadmin.css';
+import AddJobModal from "../components/AddJobModal";
 import DashboardLayout from "../layouts/DashboardLayout";
 import NavBar from "../components/NavBar";
 
@@ -13,26 +14,36 @@ export default function DashboardRecruiter() {
   // const [error, setError] = useState('');
   console.log(jobs);
 
+
+  const stripHtml = (html) => {
+    const div = document.createElement('div');
+    div.innerHTML = html;
+    return div.textContent || div. innerText || '';
+  }
+
   // add job 
-  const handleAddJob = async (e) => {
-    e.preventDefault();
-    const form = e.target;
-    
+  const handleAddJob = async ({ title, description }) => {
+    // e.preventDefault();
+    // const form = e.target;
+
     const response = await fetch("/jobs", {
       method: "POST",
       headers: { 
         "Content-Type": "application/json",
+        "Accept" : 'application/json',
         "X-CSRF-TOKEN": csrf
       },
       body: JSON.stringify({ 
-        title: form.title.value, 
-        description: form.description.value }),
+        title,
+        description }),
     });
 
     if (response.ok || response.redirected) {
       window.location.reload(); // Jobs only get updated after reloading, need fix
       console.log('job added');
     } else {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.message ?? 'Failed to save');
       console.log("Failed to add job");
     }
 
@@ -114,7 +125,7 @@ export default function DashboardRecruiter() {
                 >
                   <td>{job.title}</td>
                   <td className="table-job-desc">
-                    {job.description}
+                    {stripHtml(job.description)}
                   </td>
                   <td style={{textAlign: "center"}}>{job.applications_count ?? job.applications?.length ?? 0}</td>
                   <td className='action-btns' onClick={(e) => e.stopPropagation()}>  
@@ -139,7 +150,14 @@ export default function DashboardRecruiter() {
       
 
       {/* ── modal to add job ── */}
-      {showModal && (                                      // closes modal when clicked outside
+      
+      <AddJobModal 
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        onSave={handleAddJob}/>
+
+
+      {/* {showModal && (                                      // closes modal when clicked outside
         <div className="modal-main-cont" onClick={(e) => { if (e.target === e.currentTarget) setShowModal(false); }}>
           <div className="modal-inner-cont">
             
@@ -172,7 +190,7 @@ export default function DashboardRecruiter() {
             </div>
           </div>
         </div>  
-      )}
+      )} */}
       
     </div>
     </DashboardLayout>
