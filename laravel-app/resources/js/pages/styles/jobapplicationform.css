@@ -26,7 +26,8 @@ body {
 }
 
 .form-header {
-  background: #4d71d4;
+  background: var(--color-primary);
+  color: #000;
   padding: 40px 48px 36px;
   position: relative;
   overflow: hidden;
@@ -50,11 +51,22 @@ body {
   border-radius: 50%;
 }
 
+.form-back {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--color-primary-dark);
+  text-decoration: none;
+  width: fit-content;
+  transition: opacity var(--transition-fast);
+}
+
 .form-header h1 {
   font-family: 'DM Sans', sans-serif;
   font-weight: 600;
   font-size: 2rem;
-  color: #ffffff;
   letter-spacing: -0.02em;
   line-height: 1.15;
   position: relative;
@@ -69,7 +81,7 @@ body {
 .form-header p {
   margin-top: 8px;
   font-size: 0.85rem;
-  color: rgba(255,255,255,0.55);
+  color: var(--color-primary-dark);
   font-weight: 300;
   letter-spacing: 0.02em;
   position: relative;

@@ -10,7 +10,7 @@ const initialForm = {
   province: "",
   postal_code: "",
   country: "",
-  desired_pay: "50000",
+  desired_pay: "",
   engagement_type: "",
   date_available: "",
   highest_education: "",
@@ -39,9 +39,9 @@ export default function JobApplicationForm() {
     }
   };
 
-  const salaryMin = 10000, salaryMax = 200000;
-  const salaryNum = parseInt(form.desired_pay) || salaryMin;
-  const salaryPct = ((salaryNum - salaryMin) / (salaryMax - salaryMin)) * 100;
+  // const salaryMin = 10000, salaryMax = 200000;
+  // const salaryNum = parseInt(form.desired_pay) || salaryMin;
+  // const salaryPct = ((salaryNum - salaryMin) / (salaryMax - salaryMin)) * 100;
 
   const formatPeso = n => "₱" + parseInt(n).toLocaleString("en-PH");
 
@@ -118,11 +118,11 @@ export default function JobApplicationForm() {
     <div className="app-wrap">
       <div className="form-card">
         <div className="form-header">
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h1>Job Application Form</h1>
-            <a href="/jobs" style={{ textDecoration: 'none', color: '#333' }}>
+          <div>
+            <a href="/jobs" className="form-back" style={{ textDecoration: 'none', color: '#333' }}>
               ← Back to Jobs
             </a>
+            <h1>Job Application Form</h1>
           </div>
           <p>Please fill out all required information below</p>
         </div>
@@ -246,26 +246,6 @@ export default function JobApplicationForm() {
             </div>
           </div>
 
-          {/* Desired Pay */}
-          <div className="section">
-            <div className="section-label">Desired Pay</div>
-            <div className="salary-display">
-              <div className="salary-value">
-                {formatPeso(form.desired_pay)}<small>/ year</small>
-              </div>
-              <div className="salary-range">{formatPeso(salaryMin)} — {formatPeso(salaryMax)}</div>
-            </div>
-            <div className="slider-wrap">
-              <input
-                type="range"
-                min={salaryMin} max={salaryMax} step={1000}
-                value={form.desired_pay}
-                style={{ "--pct": salaryPct + "%" }}
-                onChange={e => set("desired_pay", e.target.value)}
-              />
-            </div>
-          </div>
-
           {/* Availability */}
           <div className="section">
             <div className="section-label">Availability</div>
@@ -281,8 +261,7 @@ export default function JobApplicationForm() {
                 ))}
               </div>
             </div>
-
-            <div className="row single">
+            <div className="row">
               <div className="field">
                 <label>Date Available</label>
                 <input 
@@ -293,7 +272,21 @@ export default function JobApplicationForm() {
                 />
                 {errors.date_available && <small style={{ color: 'red' }}>{errors.date_available[0]}</small>}
               </div>
+
+              {/* Desired Pay */}
+              <div className="field">
+                <label>Desired Salary</label>
+                <input
+                  type="input"
+                  placeholder="20000"
+                  value={form.desired_pay}
+                  style={{ borderColor: errors.postal_code ? 'red' : '#ccc' }}
+                  onChange={e => set("desired_pay", e.target.value)}
+                />
+              </div>
+
             </div>
+            
           </div>
 
           {/* Education */}
