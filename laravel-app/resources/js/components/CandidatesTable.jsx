@@ -28,7 +28,7 @@ function StatusBadge({ status }) {
 }
 
 function CandidatesTable() {
-  const data = React.useMemo(() => []);
+  const data = React.useMemo(() => [], []);
   const columns = React.useMemo(
     () => [
       {
