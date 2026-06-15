@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import { BsList } from 'react-icons/bs';
 import '../../css/layouts/dashboardlayout.css';
-import CandidatesTable from './CandidatesTable';
+import CandidatesTable from 'laravel-app/resources/js/components/CandidatesTable.jsx';
 
 /** This is used for the base layout of ALL recruiter related pages
  *
