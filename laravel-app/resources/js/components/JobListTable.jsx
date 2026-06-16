@@ -1,4 +1,4 @@
-import "./Candidates.css";
+import "laravel-app/resources/js/components/styles/Tables..css";
 import * as React from "react";
 import { useTable } from "react-table";
 
