@@ -1,0 +1,239 @@
+/* Backdrop */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.40);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-lg);
+  /* Animate in */
+  animation: backdropFadeIn var(--transition-normal) ease forwards;
+}
+
+@keyframes backdropFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Modal card */
+.modal-card {
+  background: var(--color-bg-white);
+  border: 2px solid var(--color-primary-dark);
+  border-radius: var(--radius-lg);
+  padding: var(--space-sm) var(--space-md);
+  width: 100%;
+  max-width: 580px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 60px rgba(42, 90, 180, 0.25);
+  animation: modalSlideIn var(--transition-normal) ease forwards;
+  max-height: 90vh;
+}
+
+@keyframes modalSlideIn {
+  from { opacity: 0; transform: translateY(-20px) scale(0.97); }
+  to   { opacity: 1; transform: translateY(0)     scale(1);    }
+}
+
+/* Job title input */
+.modal-title-input {
+  width: 100%;
+  border: none;
+  border-bottom: 3px solid black;
+  outline: none;
+  font-family: var(--font-display);
+  font-size: var(--text-xl);
+  font-weight: 700;
+  color: var(--color-text-dark);
+  padding: var(--space-lg) var(--space-sm) var(--space-md);
+  background: transparent;
+  border-bottom: 1.5px solid var(--color-border);
+}
+
+.modal-title-input::placeholder {
+  color: var(--color-primary-dark);
+  opacity: 0.6;
+}
+
+/* Quill editor wrapper */
+.modal-editor-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Override Quill chrome to match design */
+.modal-editor-wrap .ql-toolbar {
+  background: var(--color-primary);
+  border: none;
+  border-bottom: 1.5px solid black;
+  padding: var(--space-sm) var(--space-md);
+  flex-shrink: 0;
+}
+
+.modal-editor-wrap .ql-toolbar .ql-stroke {
+  stroke: var(--color-primary-dark);
+}
+.modal-editor-wrap .ql-toolbar .ql-fill {
+  fill: var(--color-primary-dark);
+}
+.modal-editor-wrap .ql-toolbar .ql-picker-label,
+.modal-editor-wrap .ql-toolbar .ql-picker-item {
+  color: var(--color-primary-dark);
+}
+.modal-editor-wrap .ql-toolbar button:hover .ql-stroke,
+.modal-editor-wrap .ql-toolbar .ql-active .ql-stroke {
+  stroke: var(--color-text-dark);
+}
+.modal-editor-wrap .ql-toolbar button:hover .ql-fill,
+.modal-editor-wrap .ql-toolbar .ql-active .ql-fill {
+  fill: var(--color-text-dark);
+}
+.modal-editor-wrap .ql-toolbar .ql-picker-label:hover,
+.modal-editor-wrap .ql-toolbar .ql-active .ql-picker-label {
+  color: var(--color-text-dark);
+}
+
+.modal-editor-wrap .ql-container {
+  border: none;
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  flex: 1;
+  /* overflow-y: auto; */
+}
+
+.modal-editor-wrap .ql-editor {
+  min-height: 300px;
+  padding: var(--space-lg) var(--space-md);
+  color: var(--color-text-dark);
+  line-height: 1.7;
+}
+
+.modal-editor-wrap .ql-editor.ql-blank::before {
+  color: var(--color-primary-dark);
+  opacity: 0.6;
+  font-style: normal;
+}
+
+/* Footer (Save button) */
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: var(--space-md) 0;
+  flex-shrink: 0;
+}
+
+.modal-save-btn {
+  background: var(--color-primary);
+  font-family: var(--font-display);
+  font-size: var(--text-sm);
+  font-weight: 700;
+  padding: var(--space-sm) var(--space-xl);
+  border-radius: var(--radius-md);
+  border: none;
+  box-shadow: var(--shadow-btn);
+  transition: background var(--transition-normal),
+              transform var(--transition-fast),
+              box-shadow var(--transition-normal);
+}
+
+.modal-save-btn:hover {
+  background: var(--color-primary-dark);
+  box-shadow: var(--shadow-btn-hover);
+  color: var(--color-text-white);
+  transform: translateY(-1px);
+  transition: color var(--transition-fast);
+}
+
+.modal-save-btn:active {
+  transform: translateY(0);
+}
+
+.modal-save-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Mobile: full-screen editor */
+@media (max-width: 768px) {
+  .modal-backdrop {
+    padding: 0;
+    align-items: stretch;
+  }
+
+  .modal-card {
+    max-width: 100%;
+    border-radius: 0;
+    max-height: 100dvh;
+    height: 100dvh;
+  }
+
+  /* Mobile top bar:
+    (back) (undo/redo) (save) */
+  .modal-mobile-bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    padding: var(--space-sm) var(--space-md);
+    background: var(--color-primary);
+    border-bottom: 1.5px solid var(--color-primary-dark);
+    flex-shrink: 0;
+  }
+
+  .modal-mobile-bar__back {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-dark);
+    display: flex;
+    align-items: center;
+    padding: var(--space-xs);
+  }
+
+  .modal-mobile-bar__actions {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    margin-left: auto;
+  }
+
+  .modal-mobile-bar__icon-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: var(--color-text-dark);
+    display: flex;
+    align-items: center;
+    padding: var(--space-xs);
+  }
+
+  /* Quill toolbar moves to bottom on mobile */
+  .modal-editor-wrap {
+    flex-direction: column-reverse;
+  }
+
+  .modal-editor-wrap .ql-toolbar {
+    border-top: 1.5px solid var(--color-border);
+    border-bottom: none;
+    order: 2;
+  }
+
+  .modal-editor-wrap .ql-container {
+    order: 1;
+  }
+
+  /* Hide the desktop footer on mobile */
+  .modal-footer {
+    display: none;
+  }
+}
+
+/* Hide mobile bar on desktop */
+.modal-mobile-bar {
+  display: none;
+}
