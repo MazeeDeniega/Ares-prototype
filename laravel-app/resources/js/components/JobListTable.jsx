@@ -130,3 +130,4 @@ function JobListTable() {
     </div>
   );
 }
+export default JobListTable;
