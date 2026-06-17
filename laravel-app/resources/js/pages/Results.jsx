@@ -43,7 +43,7 @@ export default function DashboardLayout({ title, subtitle, actions, children }) 
               <BsList />
             </button>
             <div>
-              <span className="dashboard-topbar__title">{title}</span>
+              <span className="dashboard-topbar__title">{Ranking Results}</span>
               {subtitle && (
                 <span className="dashboard-topbar__subtitle">{subtitle}</span>
               )}
