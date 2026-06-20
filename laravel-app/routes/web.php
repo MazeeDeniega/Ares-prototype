@@ -58,12 +58,15 @@ Route::middleware(['auth', 'role:recruiter'])->group(function () {
     Route::delete('/jobs/{id}', [JobController::class, 'destroy']);
     Route::get('/preferences/edit', [PreferenceController::class, 'edit']);
     Route::post('/preferences', [PreferenceController::class, 'update']);
-
     Route::get('/screening/{jobId}', [ScreeningController::class, 'showJobApplicants']);
+    Route::get('/candidates', [DashboardController::class, 'index']); 
+    Route::get('/api/candidates', [ScreeningController::class, 'getAllCandidates']);
     Route::match(['get', 'post'], '/screening/{jobId}/evaluate', [ScreeningController::class, 'evaluateApplicants'])->name('screen.evaluate');
-
     Route::get('/jobs/{id}/preferences', [PreferenceController::class, 'editJobPreference']);
     Route::post('/jobs/{id}/preferences', [PreferenceController::class, 'updateJobPreference']);
+
+    // Route::get('/jobs/{id}/candidates', [DashboardController::class, 'index']); // ✅ new
+    // Route::get('/jobs/{id}/results', [DashboardController::class, 'index']);  
 });
 
 // Admin
@@ -74,7 +77,6 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/users/{id}/role', [DashboardController::class, 'updateUserRole']);
 });
 
-// Serve React app for ALL routes 
 Route::get('/{any}', function () {
     return view('welcome');
 })->where('any', '.*');

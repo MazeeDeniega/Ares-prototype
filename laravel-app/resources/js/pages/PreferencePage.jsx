@@ -7,7 +7,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
   const { csrf, pref, flash } = window.__LARAVEL__ ?? {};
 
   const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 50);
-  const [presentWeight,    setPresentWeight]    = useState(pref?.present_weight     ?? 50); // Fix: was "presesent_weight"
+  const [presentWeight,    setPresentWeight]    = useState(pref?.presesent_weight   ?? 50);
   const [keywordWeight,    setKeywordWeight]    = useState(pref?.keyword_weight     ?? 40);
   const [semanticWeight,   setSemanticWeight]   = useState(pref?.semantic_weight    ?? 60);
   const [skillsWeight,     setSkillsWeight]     = useState(pref?.skills_weight      ?? 45);
@@ -20,23 +20,24 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
   const [prefConciseness,  setPrefConciseness]  = useState(!!pref?.pref_conciseness);
   const [prefOrganization, setPrefOrganization] = useState(!!pref?.pref_organization);
 
-  const [error,   setError]   = useState('');
+  const [error, setError]   = useState('');
   const [success, setSuccess] = useState(flash?.success ?? '');
 
+  // const presWeight = 100 - qualWeight;
   const blendTotal = keywordWeight + semanticWeight;
   const qualTotal  = skillsWeight + experienceWeight + educationWeight + certWeight;
 
   const getPresNote = () => {
     const items = [
-      { label: 'Formatting',   checked: prefFormatting },
-      { label: 'Language',     checked: prefLanguage },
-      { label: 'Conciseness',  checked: prefConciseness },
+      { label: 'Formatting', checked: prefFormatting },
+      { label: 'Language', checked: prefLanguage },
+      { label: 'Conciseness', checked: prefConciseness },
       { label: 'Organization', checked: prefOrganization },
     ];
     const active = items.filter((i) => i.checked);
     if (active.length === 0)
       return 'No selection — all four categories will be weighted equally at 25% each.';
-    const each      = Math.floor(100 / active.length);
+    const each = Math.floor(100 / active.length);
     const remainder = 100 % active.length;
     return (
       'Active split → ' +
@@ -48,17 +49,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
     if (e?.preventDefault) e.preventDefault();
     setError('');
     setSuccess('');
-
-    // Fix: validate totals before sending
-    if (blendTotal !== 100) {
-      setError('TF-IDF + Semantic weights must total 100%.');
-      return;
-    }
-    if (qualTotal !== 100) {
-      setError('Qualification sub-weights must total 100%.');
-      return;
-    }
-
+ 
     try {
       const response = await fetch(postUrl, {
         method: 'POST',
@@ -69,26 +60,25 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
         },
         body: JSON.stringify({
           qual_weight:        qualWeight,
-          present_weight:     presentWeight,    // Fix: was missing entirely
           keyword_weight:     keywordWeight,
           semantic_weight:    semanticWeight,
           skills_weight:      skillsWeight,
           experience_weight:  experienceWeight,
           education_weight:   educationWeight,
           cert_weight:        certWeight,
-          pref_formatting:    prefFormatting   ? 1 : 0,
-          pref_language:      prefLanguage     ? 1 : 0,
-          pref_conciseness:   prefConciseness  ? 1 : 0,
+          pref_formatting:    prefFormatting ? 1 : 0,
+          pref_language:      prefLanguage ? 1 : 0,
+          pref_conciseness:   prefConciseness ? 1 : 0,
           pref_organization:  prefOrganization ? 1 : 0,
         }),
       });
-
+ 
       if (response.ok) {
         setSuccess('Preferences saved successfully!');
       } else {
         try {
           const data = await response.json();
-          setError(`Failed to save preferences: ${data.message}`); // Fix: was setError('...', data.message)
+          setError('Failed to save preferences: ', data.message);
         } catch {
           setError(`Server error (${response.status}) — check Laravel logs.`);
         }
@@ -111,7 +101,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
             var(--color-primary-light) ${value}%,
             var(--color-primary-light) 100%)`,
     };
-
+ 
     return (
       <div className="pref-slider">
         <span className="pref-slider__label">{label}</span>
@@ -139,8 +129,8 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
       </div>
     );
   };
-
-  /* Total validation row */
+ 
+  /** Total validation row */
   const TotalRow = ({ total }) => (
     <p className={`pref-total-row${total === 100 ? ' pref-total-row--ok' : ' pref-total-row--bad'}`}>
       Total:{' '}
@@ -149,11 +139,11 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
       </strong>
     </p>
   );
-
+ 
   return (
     <DashboardLayout title={title} subtitle={subtitle}>
       <form className="pref-page" onSubmit={handleSubmit}>
-
+ 
         {/* Desktop page header */}
         <div className="pref-page__header">
           <div className="pref-page__header-text">
@@ -162,13 +152,13 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
           </div>
           <button type="submit" className="pref-page__save-btn">Save</button>
         </div>
-
+ 
         {/* Flash messages */}
         {error   && <div className="pref-flash pref-flash--error">{error}</div>}
         {success && <div className="pref-flash pref-flash--success">{success}</div>}
-
+ 
         <div className="pref-page__content">
-
+ 
           {/* Final Score Weights */}
           <PreferenceSection
             title="Final Score Weights"
@@ -186,7 +176,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
             />
             <p className="pref-note">Presentation = 100 − Qualifications (auto-set).</p>
           </PreferenceSection>
-
+ 
           {/* Qualifications */}
           <PreferenceSection
             title="Qualifications"
@@ -195,6 +185,8 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
             <WeightRow label="TF-IDF (Keyword)" value={keywordWeight}  onChange={setKeywordWeight} />
             <WeightRow label="Semantic (AI)"    value={semanticWeight} onChange={setSemanticWeight} />
             <TotalRow total={blendTotal} />
+ 
+            
           </PreferenceSection>
 
           {/* Presentation */}
@@ -228,13 +220,13 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
             <p className="pref-pres-note">{getPresNote()}</p>
           </PreferenceSection>
 
-          {/* Qualification Sub-weights */}
           <PreferenceSection
             title="Qualification Sub-weights"
-            subtitle="(must total 100%)"
-          >
+            subtitle="(must total 100%)">
             <div className="pref-sub-section">
-              <h4 className="pref-sub-section__title"></h4>
+              <h4 className="pref-sub-section__title">
+
+              </h4>
               <WeightRow label="Skills Match"  value={skillsWeight}     onChange={setSkillsWeight} />
               <WeightRow label="Experience"    value={experienceWeight} onChange={setExperienceWeight} />
               <WeightRow label="Education"     value={educationWeight}  onChange={setEducationWeight} />
@@ -242,15 +234,15 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
               <TotalRow total={qualTotal} />
             </div>
           </PreferenceSection>
-
+ 
         </div>
-
+ 
         {/* Mobile sticky save bar */}
         <div className="pref-page__mobile-save">
           <button type="submit" className="pref-page__mobile-save-btn">Save Preferences</button>
         </div>
-
+ 
       </form>
     </DashboardLayout>
   );
-}
+};

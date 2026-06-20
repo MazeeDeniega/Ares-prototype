@@ -7,7 +7,7 @@ export default function JobPreference() {
       <PreferencePage
         title={`Job Preference - ${job.title}`}
         subtitle="Overrides your default preferences for this job only."
-        postUrl={`/jobs/${job.id}/preferences`}
+        postUrl="/jobs/${job.id}/preferences"
       />
     </>
   );

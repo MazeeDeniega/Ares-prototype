@@ -1,0 +1,245 @@
+.candidates-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  padding: var(--space-xl);
+  background: var(--color-bg-primary);
+  box-sizing: border-box;
+}
+
+.themed-table-wrapper {
+  max-height: 600px;
+  overflow-y: scroll;
+  overflow-x: auto;
+  width: 100%;
+}
+
+.themed-table-wrapper table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+}
+
+.themed-table-wrapper th,
+.themed-table-wrapper td {
+  padding: 15px;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: #1a1a1a;
+}
+
+.themed-table-wrapper thead th {
+  background-color: #55608f;
+  text-align: left;
+  color: #fff;
+}
+
+.themed-table-wrapper tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+}
+
+.themed-table-wrapper tbody td {
+  position: relative;
+}
+
+.themed-table-wrapper tbody td:hover:before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -9999px;
+  bottom: -9999px;
+  background-color: rgba(255, 255, 255, 0.2);
+  z-index: -1;
+}
+
+/* ----------------------------------------------------------------
+   JobListTable / RankingTable container + plain tables
+   (used when not wrapped in .themed-table-wrapper)
+   ---------------------------------------------------------------- */
+.JobListTable table,
+.RankingTable table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.JobListTable th,
+.JobListTable td {
+  border: 1px solid #ddd;
+  padding: 10px;
+  text-align: left;
+}
+
+.JobListTable thead th {
+  background: #f2f2f2;
+}
+
+/* ----------------------------------------------------------------
+   Ranking page — preference summary bar
+   ---------------------------------------------------------------- */
+.pref-bar {
+  font-size: 0.83em;
+  color: #555;
+  background: #f8f8f8;
+  border: 1px solid #e5e7eb;
+  padding: 8px 12px;
+  border-radius: 6px;
+  margin-bottom: 18px;
+}
+
+.edit-pref-btn-ranking {
+  background: #fff;
+  color: #3a6fd1;
+  border: 1px solid #b3c7ee;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+/* ----------------------------------------------------------------
+   Rank badge (circle with number)
+   ---------------------------------------------------------------- */
+.rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #2563eb;
+  color: white;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+/* ----------------------------------------------------------------
+   Final score cell + hover-reveal breakdown
+   ---------------------------------------------------------------- */
+.score-num {
+  font-size: 1.5em;
+  font-weight: 700;
+  text-decoration: underline dotted #aaa;
+  text-underline-offset: 3px;
+}
+
+.score-denom {
+  font-size: 0.85em;
+  color: #888;
+}
+
+.hoverable {
+  position: relative;
+  cursor: default;
+  display: inline-block;
+}
+
+.hover-detail {
+  display: none;
+  position: absolute;
+  z-index: 100;
+  background: white;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px 14px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.13);
+  min-width: 260px;
+  left: 50%;
+  transform: translateX(-50%);
+  top: calc(100% + 6px);
+  text-align: left;
+  white-space: normal;
+}
+
+.hoverable:hover .hover-detail {
+  display: block;
+}
+
+.score-divider {
+  border-top: 1px solid #eee;
+  margin: 8px 0;
+}
+
+.sub-header {
+  font-size: 0.72em;
+  font-weight: bold;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 8px 0 4px;
+}
+
+.sub-header-weight {
+  font-weight: normal;
+  color: #9ca3af;
+}
+
+.breakdown {
+  font-size: 0.78em;
+  text-align: left;
+}
+
+.bar-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 3px 0;
+}
+
+.bar-label {
+  width: 96px;
+  color: #444;
+  white-space: nowrap;
+}
+
+.bar-bg {
+  flex: 1;
+  background: #e5e7eb;
+  border-radius: 3px;
+  height: 7px;
+}
+
+.bar-fill-blue {
+  height: 7px;
+  border-radius: 3px;
+  background: #2563eb;
+}
+
+.bar-fill-purple {
+  height: 7px;
+  border-radius: 3px;
+  background: #7c3aed;
+}
+
+.bar-val {
+  width: 36px;
+  text-align: right;
+  color: #555;
+}
+
+.fb {
+  margin: 4px 0 0;
+  padding-left: 14px;
+  font-size: 0.8em;
+}
+
+.fb li {
+  margin: 2px 0;
+}
+
+.fb-qual {
+  color: #92400e;
+}
+
+.fb-pres {
+  color: #5b21b6;
+}
+
+.docs a {
+  display: block;
+  margin: 3px 0;
+  font-size: 0.85em;
+  color: #2563eb;
+}
