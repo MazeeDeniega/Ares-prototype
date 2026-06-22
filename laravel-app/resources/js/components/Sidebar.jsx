@@ -5,7 +5,7 @@ import aresLogo from '../assets/ares_logo_blue.png';
 import '../../css/components/sidebar.css';
 
 export default function Sidebar({ isOpen, onClose }) {
-  const { user, csrf } = window.__LARAVEL__;
+  const { user, csrf } = window.__LARAVEL__ ?? {};
   console.log('User active:', user); 
 
   const navigate = useNavigate();

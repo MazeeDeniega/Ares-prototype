@@ -1,4 +1,4 @@
-import "laravel-app/resources/js/components/styles/Tables..css";
+import "./styles/Tables.css";
 import * as React from "react";
 import { useTable } from "react-table";
 
@@ -47,22 +47,19 @@ function EvaluateButton({ onClick }) {
   );
 }
 
-function JobListTable() {
-  const data = React.useMemo(() => [], []);
+// candidates: [{ "#": 1, Name, Email, status, Resume }]
+function JobListTable({
+  jobTitle = "Job Title",
+  candidateCount = 0,
+  onEvaluate = () => {},
+  candidates = [],
+}) {
+  const data = React.useMemo(() => candidates, [candidates]);
   const columns = React.useMemo(
     () => [
-      {
-        Header: "#",
-        accessor: "#",
-      },
-      {
-        Header: "Name",
-        accessor: "Name",
-      },
-      {
-        Header: "Email",
-        accessor: "Email",
-      },
+      { Header: "#", accessor: "#" },
+      { Header: "Name", accessor: "Name" },
+      { Header: "Email", accessor: "Email" },
       {
         Header: "Status",
         accessor: "status",
@@ -71,11 +68,14 @@ function JobListTable() {
       {
         Header: "Resume",
         accessor: "Resume",
-        Cell: ({ value }) => (
-          <a href={value} target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8", textDecoration: "underline" }}>
-            View Resume
-          </a>
-        ),
+        Cell: ({ value }) =>
+          value ? (
+            <a href={value} target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8", textDecoration: "underline" }}>
+              View Resume
+            </a>
+          ) : (
+            "No Resume"
+          ),
       },
     ],
     []
@@ -106,9 +106,7 @@ function JobListTable() {
             {headerGroups.map((headerGroup) => (
               <tr {...headerGroup.getHeaderGroupProps()}>
                 {headerGroup.headers.map((column) => (
-                  <th {...column.getHeaderProps()}>
-                    {column.render("Header")}
-                  </th>
+                  <th {...column.getHeaderProps()}>{column.render("Header")}</th>
                 ))}
               </tr>
             ))}
@@ -124,6 +122,13 @@ function JobListTable() {
                 </tr>
               );
             })}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={5} style={{ textAlign: "center", padding: "20px" }}>
+                  No applicants yet.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

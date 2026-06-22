@@ -53,6 +53,30 @@ class ScreeningController extends Controller
 
         return view('screening.applicants', compact('job'));
     }
+    
+    // Get all candidates for the authenticated user
+    public function getAllCandidates()
+    {
+        $user = Auth::user();
+        
+        $applications = Application::with('job')
+            ->whereHas('job', function ($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })
+            ->get()
+            ->map(function ($app) {
+                return [
+                    'id'           => $app->id,
+                    'Name'         => $app->first_name . ' ' . $app->last_name,
+                    'Contact'      => $app->email,
+                    'job_position' => $app->job->title ?? 'N/A',
+                    'status'       => $app->status ?? 'Pending',
+                    'details'      => $app->resume_path,
+                ];
+            });
+
+        return response()->json($applications);
+    }
 
     /**
      *  ULTIMATE PDF EXTRACTION 

@@ -1,4 +1,4 @@
-import "laravel-app/resources/js/components/styles/Tables..css";
+import "./styles/Tables.css";
 import * as React from "react";
 import { useTable } from "react-table";
 
@@ -28,21 +28,26 @@ function StatusBadge({ status }) {
 }
 
 function CandidatesTable() {
-  const data = React.useMemo(() => [], []);
+  const [data, setData] = React.useState([]);
+
+  React.useEffect(() => {
+    fetch('/api/candidates', {
+      headers: {
+        'Accept': 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'include',
+    })
+      .then(res => res.json())
+      .then(json => setData(json))
+      .catch(err => console.error('Failed to fetch candidates:', err));
+  }, []);
+
   const columns = React.useMemo(
     () => [
-      {
-        Header: "Name",
-        accessor: "Name",
-      },
-      {
-        Header: "Contact",
-        accessor: "Contact",
-      },
-      {
-        Header: "Job Position",
-        accessor: "job_position",
-      },
+      { Header: "Name", accessor: "Name" },
+      { Header: "Contact", accessor: "Contact" },
+      { Header: "Job Position", accessor: "job_position" },
       {
         Header: "Status",
         accessor: "status",
@@ -65,8 +70,8 @@ function CandidatesTable() {
     useTable({ columns, data });
 
   return (
-    <div className="CandidatesTable">
-      <div className="container">
+    <div className="candidates-page">
+      <div className="themed-table-wrapper">
         <table {...getTableProps()}>
           <thead>
             {headerGroups.map((headerGroup) => (
@@ -85,7 +90,7 @@ function CandidatesTable() {
               return (
                 <tr {...row.getRowProps()}>
                   {row.cells.map((cell) => (
-                    <td {...cell.getCellProps()}> {cell.render("Cell")} </td>
+                    <td {...cell.getCellProps()}>{cell.render("Cell")}</td>
                   ))}
                 </tr>
               );

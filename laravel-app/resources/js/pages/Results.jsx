@@ -1,58 +1,21 @@
+import DashboardLayout from '../layouts/DashboardLayout';
+import RankingTable from '../components/RankingTable';
 
-import React, { useState } from 'react';
-import Sidebar from '../components/Sidebar';
-import { BsList } from 'react-icons/bs';
-import '../../css/layouts/dashboardlayout.css';
-import RankingTable from 'laravel-app/resources/js/components/RankingTable.jsx';
+export default function Results() {
+  const { job, results, pref } = window.__LARAVEL__ ?? {};
 
-/** This is used for the base layout of ALL recruiter related pages
- *
- *  title    (string)    - Page heading shown in desktop header & mobile topbar
- *  subtitle (string)    - Small subtitle line (e.g. "Applied to all jobs")
- *  actions  (ReactNode) - Optional right-side actions (e.g. Save, edit preference, New job button (Refer to Figma for visualization))
- *  children (ReactNode) - Page content (e.g. Candidate page, evaluate page, ranking page etc.)
- */
-export default function DashboardLayout({ title, subtitle, actions, children }) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  document.title = `Results - ${job?.title ?? 'Job'}`;
 
   return (
-    <div className="dashboard-layout">
-
-      {/* Desktop: static sidebar */}
-      <div className="dashboard-layout__sidebar">
-        <Sidebar isOpen={false} onClose={() => {}} />
-      </div>
-
-      {/* Mobile: overlay drawer */}
-      <Sidebar
-        isOpen={drawerOpen}
-        onClose={() => setDrawerOpen(false)}
+    <DashboardLayout title="Ranking Results" subtitle={job?.title ?? ''}>
+      <RankingTable
+        jobTitle={job?.title ?? 'Job'}
+        rankings={results ?? []}
+        pref={pref ?? {}}
+        onEditPreferences={() => {
+          if (job) window.location.href = `/jobs/${job.id}/preferences`;
+        }}
       />
-
-      {/* Main content */}
-      <main className="dashboard-layout__main">
-
-        {/* Mobile top bar */}
-        <div className="dashboard-topbar">
-          <div className="dashboard-topbar__row">
-            <button
-              className="sidebar-hamburger"
-              onClick={() => setDrawerOpen(true)}
-              aria-label="Open menu"
-            >
-              <BsList />
-            </button>
-            <div>
-              <span className="dashboard-topbar__title">{Ranking Results}</span>
-              {subtitle && (
-                <span className="dashboard-topbar__subtitle">{subtitle}</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <RankingTable />
-      </main>
-    </div>
+    </DashboardLayout>
   );
 };

@@ -58,6 +58,19 @@
         
         <div id="app"></div>
 
+        <script>
+            window.__LARAVEL__ = {
+                csrf: "{{ csrf_token() }}",
+                user: @json(auth()->user()),
+                jobs: @json(auth()->check() ? auth()->user()->jobs()->withCount('applications')->get() : []),
+                pref: @json(auth()->check() ? auth()->user()->preference : null),
+                flash: {
+                    success: "{{ session('success') }}",
+                    error: "{{ session('error') }}"
+                }
+            };
+        </script>
+
         @if (Route::has('login'))
             <div class="h-14.5 hidden lg:block"></div>
         @endif
