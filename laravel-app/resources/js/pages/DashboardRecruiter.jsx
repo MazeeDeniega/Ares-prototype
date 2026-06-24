@@ -52,9 +52,18 @@ export default function DashboardRecruiter() {
         {/* ── page header: title + New Job button ── */}
         <div className="rec-page-header">
           <h2 className="rec-page-title">Your Jobs</h2>
-          <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>
-            + New Job
-          </button>
+
+          <div className="header-buttons">
+
+            <a href="/preferences/edit">
+              <button className="edit-pref-btn" type="button">Default Preferences</button>
+            </a>
+
+            <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>
+              + New Job
+            </button>
+
+          </div>
         </div>
 
         {/* ── jobs table ── */}
@@ -63,11 +72,6 @@ export default function DashboardRecruiter() {
             <div className="flash-message">
               {flash.success && <p style={{ color: 'green' }}>{flash.success}</p>}
               {flash.error   && <p style={{ color: 'red'   }}>{flash.error}</p>}
-            </div>
-            <div className="header-btn">
-              <a href="/preferences/edit">
-                <button className="edit-pref-btn" type="button">Default Preferences</button>
-              </a>
             </div>
           </div>
 

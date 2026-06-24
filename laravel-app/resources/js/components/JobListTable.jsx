@@ -70,7 +70,10 @@ function JobListTable({
         accessor: "Resume",
         Cell: ({ value }) =>
           value ? (
-            <a href={value} target="_blank" rel="noopener noreferrer" style={{ color: "#1a73e8", textDecoration: "underline" }}>
+            <a href={value} 
+              target="_blank" 
+              rel="noopener noreferrer"
+              style={{ color: "#1a73e8", textDecoration: "underline" }}>
               View Resume
             </a>
           ) : (

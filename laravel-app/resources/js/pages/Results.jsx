@@ -4,7 +4,7 @@ import RankingTable from '../components/RankingTable';
 export default function Results() {
   const { job, results, pref } = window.__LARAVEL__ ?? {};
 
-  document.title = `Results - ${job?.title ?? 'Job'}`;
+  document.title = `Results - ${job?.title ?? ''}`;
 
   return (
     <DashboardLayout title="Ranking Results" subtitle={job?.title ?? ''}>
