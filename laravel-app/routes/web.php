@@ -9,6 +9,11 @@ use App\Http\Controllers\PreferenceController;
 use App\Http\Controllers\ApplicantController;
 use Illuminate\Support\Facades\Auth;
 
+    // Interactive Testing Sandbox UI
+    Route::get('/screening/sandbox', [ScreeningController::class, 'showSandbox'])->name('screening.sandbox');
+    // AJAX Execution Endpoint
+    Route::post('/screening/sandbox/analyze', [ScreeningController::class, 'analyzeSandbox'])->name('screening.sandbox.analyze');
+
 // Guest only routes
 Route::middleware('guest')->group(function () {
     Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
@@ -61,12 +66,12 @@ Route::middleware(['auth', 'role:recruiter'])->group(function () {
     Route::get('/screening/{jobId}', [ScreeningController::class, 'showJobApplicants']);
     Route::get('/candidates', [DashboardController::class, 'index']); 
     Route::get('/api/candidates', [ScreeningController::class, 'getAllCandidates']);
+
     Route::match(['get', 'post'], '/screening/{jobId}/evaluate', [ScreeningController::class, 'evaluateApplicants'])->name('screen.evaluate');
     Route::get('/jobs/{id}/preferences', [PreferenceController::class, 'editJobPreference']);
     Route::post('/jobs/{id}/preferences', [PreferenceController::class, 'updateJobPreference']);
 
-    // Route::get('/jobs/{id}/candidates', [DashboardController::class, 'index']); // ✅ new
-    // Route::get('/jobs/{id}/results', [DashboardController::class, 'index']);  
+    
 });
 
 // Admin
@@ -77,6 +82,7 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/users/{id}/role', [DashboardController::class, 'updateUserRole']);
 });
 
-Route::get('/{any}', function () {
-    return view('welcome');
-})->where('any', '.*');
+// Route::get('/{any}', function () {
+//     return view('welcome');
+// })->where('any', '.*');
+

@@ -53,12 +53,12 @@ class ScreeningController extends Controller
 
         return view('screening.applicants', compact('job'));
     }
-    
+
     // Get all candidates for the authenticated user
     public function getAllCandidates()
     {
         $user = Auth::user();
-        
+
         $applications = Application::with('job')
             ->whereHas('job', function ($query) use ($user) {
                 $query->where('user_id', $user->id);
@@ -84,28 +84,28 @@ class ScreeningController extends Controller
     private function extractTextUltimate(string $pdfPath): array
     {
         Log::info(" Extracting text from: " . basename($pdfPath));
-        
+
         // Method 1: Smalot Parser (regular PDFs)
         $result = $this->trySmalotParser($pdfPath);
         if (!empty($result['text'])) {
             Log::info(" Smalot success: " . $result['char_count'] . " chars");
             return $result;
         }
-        
+
         // Method 2: Cloud OCR (Canva/image PDFs - NO imagick!)
         $result = $this->tryCloudOcrNoImagick($pdfPath);
         if (!empty($result['text'])) {
             Log::info(" Cloud OCR success: " . $result['char_count'] . " chars");
             return $result;
         }
-        
+
         // Method 3: Heuristic metadata extraction
         $result = $this->tryHeuristic($pdfPath);
         if (!empty($result['text'])) {
             Log::info(" Heuristic success: " . $result['char_count'] . " chars");
             return $result;
         }
-        
+
         Log::warning(" All extraction methods failed: " . basename($pdfPath));
         return ['text' => '', 'method' => 'all_failed', 'page_count' => 1, 'char_count' => 0];
     }
@@ -130,15 +130,77 @@ class ScreeningController extends Controller
         return ['text' => ''];
     }
 
-    /**
-     * Cloud OCR
-     */
+    //   Reconstruct text from OCR.space overlay data, preserving line breaks, blank lines, and indentation.
+    private function reconstructTextFromOverlay(array $overlayLines): string
+    {
+        if (empty($overlayLines)) {
+            return '';
+        }
+
+        // Defensive: make sure lines are read top-to-bottom even if the API
+        // ever returns them out of order.
+        usort($overlayLines, fn($a, $b) => ($a['MinTop'] ?? 0) <=> ($b['MinTop'] ?? 0));
+
+        // Typical line height, used as the unit for "how big a gap counts
+        // as a blank line" and "how far right counts as indented".
+        $heights   = array_column($overlayLines, 'MaxHeight');
+        $avgHeight = count($heights) ? array_sum($heights) / count($heights) : 12;
+
+        // The leftmost text position anywhere on the page = the document's
+        // baseline left margin. Lines starting noticeably further right
+        // than this are treated as indented/bulleted.
+        $leftEdges = [];
+        foreach ($overlayLines as $line) {
+            $words = $line['Words'] ?? [];
+            if (!empty($words)) {
+                $leftEdges[] = min(array_column($words, 'Left'));
+            }
+        }
+        $baselineLeft = !empty($leftEdges) ? min($leftEdges) : 0;
+
+        $output  = [];
+        $prevTop = null;
+
+        foreach ($overlayLines as $line) {
+            $lineText = trim($line['LineText'] ?? '');
+            if ($lineText === '') {
+                continue;
+            }
+
+            $top = $line['MinTop'] ?? 0;
+
+            // Big vertical jump from the previous line -> insert a blank
+            // line, approximating the paragraph/section spacing a real
+            // PDF would have had.
+            if ($prevTop !== null) {
+                $gap = $top - $prevTop;
+                if ($gap > $avgHeight * 1.8) {
+                    $output[] = '';
+                }
+            }
+
+            // Indented/bulleted line -> prepend a couple of spaces so the
+            // existing presentation-scoring logic (which looks for leading
+            // whitespace) can detect it, same as it would for a normal
+            // text-layer PDF.
+            $words    = $line['Words'] ?? [];
+            $lineLeft = !empty($words) ? min(array_column($words, 'Left')) : $baselineLeft;
+            $indent   = ($lineLeft - $baselineLeft) > ($avgHeight * 0.8) ? '  ' : '';
+
+            $output[] = $indent . $lineText;
+            $prevTop  = $top;
+        }
+
+        return implode("\n", $output);
+    }
+
+    //    Cloud OCR.space API call (no imagick, no local OCR)
     private function tryCloudOcrNoImagick(string $pdfPath): array
     {
         try {
             $pdfContent = file_get_contents($pdfPath);
             if (!$pdfContent) return ['text' => ''];
-            
+
             $client = new \GuzzleHttp\Client(['timeout' => 45]);
             $response = $client->post('https://api.ocr.space/parse/image', [
                 'multipart' => [
@@ -156,8 +218,11 @@ class ScreeningController extends Controller
                         'contents' => 'eng'
                     ],
                     [
+                        // CHANGED: was 'false'. Requesting overlay data gives us
+                        // per-line position info so real structure can be rebuilt
+                        // (see reconstructTextFromOverlay above).
                         'name' => 'isOverlayRequired',
-                        'contents' => 'false'
+                        'contents' => 'true'
                     ],
                     [
                         'name' => 'OCREngine',
@@ -170,9 +235,21 @@ class ScreeningController extends Controller
                 ]
             ]);
 
-            $data = json_decode($response->getBody(), true);
-            $text = trim($data['ParsedResults'][0]['ParsedText'] ?? '');
-            
+            $data   = json_decode($response->getBody(), true);
+            $result = $data['ParsedResults'][0] ?? [];
+
+            // NEW: prefer structure-reconstructed text. Fall back to the
+            // old flat ParsedText if no overlay came back (e.g. the image
+            // type didn't support it, or overlay data was empty).
+            $overlayLines = $result['TextOverlay']['Lines'] ?? [];
+            $text = !empty($overlayLines)
+                ? trim($this->reconstructTextFromOverlay($overlayLines))
+                : '';
+
+            if ($text === '') {
+                $text = trim($result['ParsedText'] ?? '');
+            }
+
             if (strlen($text) > 50) {
                 return [
                     'text' => $text,
@@ -192,15 +269,15 @@ class ScreeningController extends Controller
         try {
             $content = file_get_contents($pdfPath);
             if (!$content) return ['text' => ''];
-            
+
             // Extract PDF metadata (Author, Title, etc.)
             preg_match_all('/\/(Title|Subject|Author|Creator|Producer|Keywords)\s*\$([^)]+)\$/', $content, $matches);
             $metadata = trim(implode(' ', $matches[2] ?? []));
-            
+
             // Extract name-like patterns
             preg_match_all('/[A-Z][a-z]+\s+[A-Z][a-z]+/', $content, $nameMatches);
             $names = implode(' ', $nameMatches[0] ?? []);
-            
+
             $text = trim($metadata . ' ' . $names);
             if (strlen($text) > 20) {
                 return [
@@ -214,6 +291,158 @@ class ScreeningController extends Controller
             // Silent fail
         }
         return ['text' => ''];
+    }
+
+    // ----------------------------------------------------------------
+    // Render the Interactive Laravel-side Testing Sandbox UI
+    // ----------------------------------------------------------------
+    public function showSandbox()
+    {
+        return view('screening.sandbox');
+    }
+
+    private function extractPdfPageCount(string $path): int
+    {
+        if (!file_exists($path)) {
+            return 1;
+        }
+        
+        $content = file_get_contents($path);
+        preg_match_all('/\/Type\s*\/Page[^s]/', $content, $matches);
+        $count = count($matches[0]);
+        
+        return $count > 0 ? $count : 1;
+    }
+
+    // ----------------------------------------------------------------
+    // Execute Telemetry Analysis via Production Code Stack
+    // ----------------------------------------------------------------
+    public function analyzeSandbox(Request $request)
+    {
+        try {
+            $request->validate([
+                'pdf' => 'required|file|mimes:pdf',
+                'job_description' => 'required|string',
+            ]);
+
+            $pdfFile = $request->file('pdf');
+            $jobDescription = $request->input('job_description');
+
+            // 1. Capture Form Parameters (Simulating Recruiter Matrix Profiles)
+            $pref = (object) [
+                'keyword_weight'      => (int) $request->input('keyword_weight', 40),
+                'semantic_weight'     => (int) $request->input('semantic_weight', 60),
+                'qual_weight'         => (int) $request->input('qual_weight', 100),
+                'pres_weight'         => (int) $request->input('layout_weight', 0),
+                'skills_weight'       => (int) $request->input('skills_weight', 35),
+                'experience_weight'   => (int) $request->input('experience_weight', 20),
+                'education_weight'    => (int) $request->input('education_weight', 25),
+                'cert_weight'         => (int) $request->input('cert_weight', 10),
+                'formatting_weight'   => (int) $request->input('formatting_weight', 25),
+                'language_weight'     => (int) $request->input('language_weight', 25),
+                'concise_weight'      => (int) $request->input('concise_weight', 25),
+                'organization_weight' => (int) $request->input('organization_weight', 25),
+            ];
+
+            // 2. Execute Production File Storage/Retrieval Simulations
+            $tempPath = $pdfFile->getRealPath();
+            $resumeText = '';
+            $feedback = [];
+            $startTime = microtime(true);
+
+            // 3. EXECUTE PRODUCTION PARSER (Smalot)
+            $parser     = new Parser();
+            $pdf        = $parser->parseFile($tempPath);
+            $pages      = $pdf->getPages();
+            $resumeText = trim(implode("\n\n", array_map(fn($p) => $p->getText(), $pages)));
+            $pageCount  = $this->extractPdfPageCount($tempPath);
+
+            if (empty($resumeText)) {
+                $feedback[] = 'PDF parsed but no text extracted — file may be image-based or corrupt';
+            }
+
+            // 4. DISPATCH PAYLOAD VIA LARAVEL HTTP CLIENT
+            $response = Http::timeout(60)->post('http://127.0.0.1:5000/analyze', [
+                'resume'               => $resumeText,
+                'job'                  => $jobDescription,
+                'page_count'           => $pageCount,
+                'keyword_weight'       => $pref->keyword_weight,
+                'semantic_weight'      => $pref->semantic_weight,
+                'presentation_weights' => [
+                    'formatting_weight'   => $pref->formatting_weight,
+                    'language_weight'     => $pref->language_weight,
+                    'concise_weight'      => $pref->concise_weight,
+                    'organization_weight' => $pref->organization_weight,
+                ],
+            ]);
+
+            $executionTime = round((microtime(true) - $startTime) * 1000, 2);
+            $data = $response->json();
+
+            // 5. RUN PRODUCTION SCORE CALCULATION ENGINE
+            $yearsExp  = $data['years_experience']    ?? 0;
+            $eduScore  = $data['education_score']     ?? 0;
+            $certScore = $data['certification_score'] ?? 0;
+            $skills    = $data['matched_skills']      ?? [];
+
+            $blendedSimilarity = $data['combined_similarity'] ?? 0;
+            $qualTotal = ($pref->skills_weight + $pref->experience_weight + $pref->education_weight + $pref->cert_weight) ?: 100;
+            $experienceNorm = min($yearsExp, 5) / 5;
+
+            $qualificationsScore = round((
+                ($blendedSimilarity * $pref->skills_weight     / $qualTotal) +
+                ($experienceNorm    * $pref->experience_weight / $qualTotal) +
+                ($eduScore          * $pref->education_weight  / $qualTotal) +
+                ($certScore         * $pref->cert_weight       / $qualTotal)
+            ) * 100, 2);
+
+            $presentationRaw   = $data['presentation_score'] ?? 0;
+            $presentationScore = round(($presentationRaw <= 1 ? $presentationRaw * 100 : $presentationRaw), 2);
+
+            $finalScore = round(
+                ($qualificationsScore * $pref->qual_weight / 100) +
+                ($presentationScore   * $pref->pres_weight / 100), 2
+            );
+
+            if ($blendedSimilarity < 0.5) $feedback[] = 'Low job similarity';
+            if ($yearsExp < 2)             $feedback[] = 'Limited experience';
+            if ($certScore == 0)           $feedback[] = 'No certifications detected';
+            if (empty($feedback))          $feedback[] = 'Good match';
+
+            // 6. RETURN COMPLETE TELEMETRY
+            return response()->json([
+                'success' => true,
+                'parser_used' => 'Smalot\\PdfParser\\Parser (Production Standard)',
+                'php_execution_latency_ms' => $executionTime,
+                'extracted_text_preview' => mb_strimwidth($resumeText, 0, 800, '...'),
+                'extracted_char_count' => strlen($resumeText),
+                'page_count' => $pageCount,
+                'calculated_scores' => [
+                    'final_score' => $finalScore,
+                    'qualifications_score' => $qualificationsScore,
+                    'presentation_score' => $presentationScore,
+                    'formatting_score' => round(($data['formatting_score'] ?? 0) * 100, 1),
+                    'language_score' => round(($data['language_score'] ?? 0) * 100, 1),
+                    'concise_score' => round(($data['concise_score'] ?? 0) * 100, 1),
+                    'organization_score' => round(($data['organization_score'] ?? 0) * 100, 1),
+                ],
+                'extracted_candidate_meta' => [
+                    'skills_detected' => $skills,
+                    'years_experience' => $yearsExp,
+                    'education_raw_score' => $eduScore,
+                    'certification_raw_score' => $certScore,
+                ],
+                'generated_decision_feedback' => $feedback,
+                'raw_flask_json_response' => $data
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ], 500);
+        }
     }
 
     /**
@@ -297,7 +526,7 @@ class ScreeningController extends Controller
                 if (file_exists($fullPath)) {
                     $extracted = $this->extractTextUltimate($fullPath);
                     $resumeText = $extracted['text'];
-                    
+
                     $result['extraction_method'] = $extracted['method'];
                     $result['char_count'] = $extracted['char_count'];
 
