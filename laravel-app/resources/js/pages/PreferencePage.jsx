@@ -7,7 +7,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
   const { csrf, pref, flash } = window.__LARAVEL__ ?? {};
 
   const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 50);
-  const [presentWeight,    setPresentWeight]    = useState(pref?.presesent_weight   ?? 50);
+  const [presentWeight,    setPresentWeight]    = useState(pref?.present_weight   ?? 50);
   const [keywordWeight,    setKeywordWeight]    = useState(pref?.keyword_weight     ?? 40);
   const [semanticWeight,   setSemanticWeight]   = useState(pref?.semantic_weight    ?? 60);
   const [skillsWeight,     setSkillsWeight]     = useState(pref?.skills_weight      ?? 45);

@@ -28,8 +28,9 @@ export default function Sidebar({ isOpen, onClose }) {
     <aside className="sidebar">
       {/* Brand */}
       <div className="sidebar__brand">
-        <span className="sidebar__brand-icon"><BsSliders /></span>
-        <span className="sidebar__brand-name">ARES Placeholder</span>
+        <span className="sidebar__brand-name">
+          <img src={aresLogo} />
+        </span>
       </div>
 
       {/* Nav */}

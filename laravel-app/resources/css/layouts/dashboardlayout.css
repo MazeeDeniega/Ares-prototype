@@ -1,7 +1,7 @@
 .dashboard-layout {
   display: flex;
   min-height: 100vh;
-  gap: 10px;
+  /* gap: 10px; */
   background: var(--color-bg-primary);
 }
 
@@ -19,7 +19,7 @@
   overflow-x: hidden;
   /* flex: 1; */
   display: flex;
-  flex-direction: column;
+  /* flex-direction: column; */
 }
 
 /* Mobile top bar */
