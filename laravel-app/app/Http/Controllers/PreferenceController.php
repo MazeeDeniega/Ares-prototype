@@ -57,6 +57,8 @@ class PreferenceController extends Controller
     {
         $pref = Auth::user()->preference;
 
+        //  dd($pref);
+
         if (!$pref) {
             $pref = Preference::create([
                 'user_id'             => Auth::id(),
@@ -122,6 +124,7 @@ class PreferenceController extends Controller
         ));
 
         return redirect('/recruiter')->with('success', 'Default preferences saved!');
+        
     }
 
     public function editJobPreference($jobId)

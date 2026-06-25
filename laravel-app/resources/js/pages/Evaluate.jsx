@@ -21,11 +21,12 @@ export default function Evaluate() {
 
     if (response.ok || response.redirected) {
       setSuccess('Evaluation complete!');
+      // Refresh applications to show updated statuses
       window.location.href = `/screening/${job.id}/evaluate`;
-      if (updated.ok) {
-        const data = await updated.json();
-        setApplications(data);
-      }
+      // if (updated.ok) {
+      //   const data = await updated.json();
+      //   setApplications(data);
+      // }
     } else {
       setError('Evaluation failed. Please try again.');
     }
@@ -43,7 +44,7 @@ export default function Evaluate() {
         <div className="eval-upper-cont">
           
             <p><a href="/recruiter">← Back to Dashboard</a></p>
-            
+
         </div>
 
         <div className="eval-lower-cont">
@@ -62,8 +63,9 @@ export default function Evaluate() {
           <div className="eval-table-cont">
             <div className="eval-table-header">
               <h3>Applicant List ({applications.length})</h3>
+
               <button
-                onClick={handleEvaluate}
+                onClick={() => window.location.href = `/screening/${job.id}/evaluate`}
                 disabled={loading}
               >
                 {loading ? 'Evaluating...' : 'Evaluate All Applicants'}
