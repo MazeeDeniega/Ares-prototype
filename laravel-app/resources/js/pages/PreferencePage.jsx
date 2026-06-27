@@ -3,11 +3,112 @@ import DashboardLayout    from '../layouts/DashboardLayout';
 import PreferenceSection  from '../components/PreferenceSection';
 import '../../css/pages/preferences.css';
 
+/* Slider + number input row */
+const WeightRow = ({ label, value, onChange, disabled = false }) => {
+  const trackStyle = {
+    background: disabled
+      ? `linear-gradient(to right,
+          var(--color-primary-light) 0%,
+          var(--color-primary-light) 100%)`
+      : `linear-gradient(to right,
+          var(--color-primary-dark) 0%,
+          var(--color-primary-dark) ${value}%,
+          var(--color-primary-light) ${value}%,
+          var(--color-primary-light) 100%)`,
+  };
+
+  return (
+    <div className="pref-slider">
+      <span className="pref-slider__label">{label}</span>
+      <div className="pref-slider__row">
+        <input
+          className="pref-slider__input"
+          type="range"
+          min={0}
+          max={100}
+          value={value}
+          disabled={disabled}
+          style={{ ...trackStyle, opacity: disabled ? 0.5 : 1 }}
+          onChange={(e) => !disabled && onChange(parseInt(e.target.value))}
+        />
+        <input
+          type="number"
+          min={0}
+          max={100}
+          value={value}
+          disabled={disabled}
+          className="pref-slider__number"
+          onChange={(e) => !disabled && onChange(parseInt(e.target.value) || 0)}
+        />
+      </div>
+    </div>
+  );
+};
+
+/** Total validation row */
+const TotalRow = ({ total }) => (
+  <p className={`pref-total-row${total === 100 ? ' pref-total-row--ok' : ' pref-total-row--bad'}`}>
+    Total:{' '}
+    <strong>
+      {total}% {total === 100 ? '✓' : '(must equal 100%)'}
+    </strong>
+  </p>
+);
+
+/**
+ * Rebalances a group of weights so the group always sums to exactly 100.
+ * The slider at `changedIndex` is set to `newValue`, and the remaining
+ * amount (100 - newValue) is distributed across the other sliders
+ * proportionally to their current values (or equally if they are all 0).
+ * Largest-remainder rounding keeps every value an integer with an exact 100 total.
+ *
+ * @param {number[]} values  current values of the group
+ * @param {number}   changedIndex  index of the slider the user moved
+ * @param {number}   newValue  the new value for that slider
+ * @returns {number[]} the rebalanced group values
+ */
+function rebalanceGroup(values, changedIndex, newValue) {
+  const clamped = Math.min(100, Math.max(0, Math.round(newValue) || 0));
+  const next = [...values];
+  next[changedIndex] = clamped;
+
+  const otherIndices = values.map((_, i) => i).filter((i) => i !== changedIndex);
+  const remaining = 100 - clamped;
+
+  if (otherIndices.length === 0) return next;
+
+  const othersSum = otherIndices.reduce((sum, i) => sum + values[i], 0);
+
+  // Raw (fractional) target for each other slider.
+  const raw = otherIndices.map((i) =>
+    othersSum === 0 ? remaining / otherIndices.length : (values[i] / othersSum) * remaining
+  );
+
+  // Largest-remainder method: floor everything, then hand out leftover units
+  // to the sliders with the biggest fractional parts so the total hits 100.
+  const floored = raw.map((r) => Math.floor(r));
+  let leftover = remaining - floored.reduce((a, b) => a + b, 0);
+
+  const order = raw
+    .map((r, k) => ({ k, frac: r - floored[k] }))
+    .sort((a, b) => b.frac - a.frac);
+
+  const result = [...floored];
+  for (let n = 0; n < leftover; n++) {
+    result[order[n % order.length].k] += 1;
+  }
+
+  otherIndices.forEach((i, k) => {
+    next[i] = result[k];
+  });
+  return next;
+}
+
 export default function PreferencePage({ title, subtitle, postUrl }) {
   const { csrf, pref, flash } = window.__LARAVEL__ ?? {};
 
-  const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 50);
-  const [presentWeight,    setPresentWeight]    = useState(pref?.present_weight   ?? 50);
+  const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 80);
+  const [presentWeight,    setPresentWeight]    = useState(pref?.present_weight     ?? 20);
   const [keywordWeight,    setKeywordWeight]    = useState(pref?.keyword_weight     ?? 40);
   const [semanticWeight,   setSemanticWeight]   = useState(pref?.semantic_weight    ?? 60);
   const [skillsWeight,     setSkillsWeight]     = useState(pref?.skills_weight      ?? 45);
@@ -26,6 +127,31 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
   // const presWeight = 100 - qualWeight;
   const blendTotal = keywordWeight + semanticWeight;
   const qualTotal  = skillsWeight + experienceWeight + educationWeight + certWeight;
+
+  // Each group auto-rebalances so its sliders always sum to exactly 100.
+  const setFinalGroup = (index, val) => {
+    const [q, p] = rebalanceGroup([qualWeight, presentWeight], index, val);
+    setQualWeight(q);
+    setPresentWeight(p);
+  };
+
+  const setBlendGroup = (index, val) => {
+    const [k, s] = rebalanceGroup([keywordWeight, semanticWeight], index, val);
+    setKeywordWeight(k);
+    setSemanticWeight(s);
+  };
+
+  const setSubGroup = (index, val) => {
+    const [sk, ex, ed, ce] = rebalanceGroup(
+      [skillsWeight, experienceWeight, educationWeight, certWeight],
+      index,
+      val
+    );
+    setSkillsWeight(sk);
+    setExperienceWeight(ex);
+    setEducationWeight(ed);
+    setCertWeight(ce);
+  };
 
   const getPresNote = () => {
     const items = [
@@ -88,58 +214,6 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
     }
   };
 
-  /* Slider + number input row */
-  const WeightRow = ({ label, value, onChange, disabled = false }) => {
-    const trackStyle = {
-      background: disabled
-        ? `linear-gradient(to right,
-            var(--color-primary-light) 0%,
-            var(--color-primary-light) 100%)`
-        : `linear-gradient(to right,
-            var(--color-primary-dark) 0%,
-            var(--color-primary-dark) ${value}%,
-            var(--color-primary-light) ${value}%,
-            var(--color-primary-light) 100%)`,
-    };
- 
-    return (
-      <div className="pref-slider">
-        <span className="pref-slider__label">{label}</span>
-        <div className="pref-slider__row">
-          <input
-            className="pref-slider__input"
-            type="range"
-            min={0}
-            max={100}
-            value={value}
-            disabled={disabled}
-            style={{ ...trackStyle, opacity: disabled ? 0.5 : 1 }}
-            onChange={(e) => !disabled && onChange(parseInt(e.target.value))}
-          />
-          <input
-            type="number"
-            min={0}
-            max={100}
-            value={value}
-            disabled={disabled}
-            className="pref-slider__number"
-            onChange={(e) => !disabled && onChange(parseInt(e.target.value) || 0)}
-          />
-        </div>
-      </div>
-    );
-  };
- 
-  /** Total validation row */
-  const TotalRow = ({ total }) => (
-    <p className={`pref-total-row${total === 100 ? ' pref-total-row--ok' : ' pref-total-row--bad'}`}>
-      Total:{' '}
-      <strong>
-        {total}% {total === 100 ? '✓' : '(must equal 100%)'}
-      </strong>
-    </p>
-  );
- 
   return (
     <DashboardLayout title={title} subtitle={subtitle}>
       <form className="pref-page" onSubmit={handleSubmit}>
@@ -167,13 +241,14 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
             <WeightRow
               label="Qualifications"
               value={qualWeight}
-              onChange={(val) => setQualWeight(Math.min(100, Math.max(0, val)))}
+              onChange={(val) => setFinalGroup(0, val)}
             />
             <WeightRow
               label="Presentation"
               value={presentWeight}
-              onChange={(val) => setPresentWeight(Math.min(100, Math.max(0, val)))}
+              onChange={(val) => setFinalGroup(1, val)}
             />
+            <TotalRow total={qualWeight + presentWeight} />
             <p className="pref-note">Presentation = 100 − Qualifications (auto-set).</p>
           </PreferenceSection>
  
@@ -182,8 +257,8 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
             title="Qualifications"
             subtitle="Skills Matching — TF-IDF + Semantic (blend must total 100%)."
           >
-            <WeightRow label="TF-IDF (Keyword)" value={keywordWeight}  onChange={setKeywordWeight} />
-            <WeightRow label="Semantic (AI)"    value={semanticWeight} onChange={setSemanticWeight} />
+            <WeightRow label="TF-IDF (Keyword)" value={keywordWeight}  onChange={(val) => setBlendGroup(0, val)} />
+            <WeightRow label="Semantic (AI)"    value={semanticWeight} onChange={(val) => setBlendGroup(1, val)} />
             <TotalRow total={blendTotal} />
  
             
@@ -227,10 +302,10 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
               <h4 className="pref-sub-section__title">
 
               </h4>
-              <WeightRow label="Skills Match"  value={skillsWeight}     onChange={setSkillsWeight} />
-              <WeightRow label="Experience"    value={experienceWeight} onChange={setExperienceWeight} />
-              <WeightRow label="Education"     value={educationWeight}  onChange={setEducationWeight} />
-              <WeightRow label="Certification" value={certWeight}       onChange={setCertWeight} />
+              <WeightRow label="Skills Match"  value={skillsWeight}     onChange={(val) => setSubGroup(0, val)} />
+              <WeightRow label="Experience"    value={experienceWeight} onChange={(val) => setSubGroup(1, val)} />
+              <WeightRow label="Education"     value={educationWeight}  onChange={(val) => setSubGroup(2, val)} />
+              <WeightRow label="Certification" value={certWeight}       onChange={(val) => setSubGroup(3, val)} />
               <TotalRow total={qualTotal} />
             </div>
           </PreferenceSection>
