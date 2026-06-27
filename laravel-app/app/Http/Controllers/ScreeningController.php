@@ -84,30 +84,49 @@ class ScreeningController extends Controller
     private function extractTextUltimate(string $pdfPath): array
     {
         Log::info(" Extracting text from: " . basename($pdfPath));
+        $attempts = [];
 
         // Method 1: Smalot Parser (regular PDFs)
         $result = $this->trySmalotParser($pdfPath);
+        $attempts[] = $this->traceAttempt('smalot', $result);
         if (!empty($result['text'])) {
             Log::info(" Smalot success: " . $result['char_count'] . " chars");
-            return $result;
+            return $result + ['attempts' => $attempts];
         }
 
         // Method 2: Cloud OCR (Canva/image PDFs - NO imagick!)
         $result = $this->tryCloudOcrNoImagick($pdfPath);
+        $attempts[] = $this->traceAttempt('cloud_ocr', $result);
         if (!empty($result['text'])) {
             Log::info(" Cloud OCR success: " . $result['char_count'] . " chars");
-            return $result;
+            return $result + ['attempts' => $attempts];
         }
 
         // Method 3: Heuristic metadata extraction
         $result = $this->tryHeuristic($pdfPath);
+        $attempts[] = $this->traceAttempt('heuristic', $result);
         if (!empty($result['text'])) {
             Log::info(" Heuristic success: " . $result['char_count'] . " chars");
-            return $result;
+            return $result + ['attempts' => $attempts];
         }
 
         Log::warning(" All extraction methods failed: " . basename($pdfPath));
-        return ['text' => '', 'method' => 'all_failed', 'page_count' => 1, 'char_count' => 0];
+        return ['text' => '', 'method' => 'all_failed', 'page_count' => 1, 'char_count' => 0, 'attempts' => $attempts];
+    }
+
+    /**
+     * NEW: turns whatever a try*() method returned into a small, UI/log
+     * friendly trace entry. Each try*() method now sets '_failure_reason'
+     * on failure instead of just silently returning ['text' => ''], so we
+     * can finally see WHY a tier failed instead of only THAT it failed.
+     */
+    private function traceAttempt(string $method, array $result): array
+    {
+        return [
+            'method'  => $method,
+            'success' => !empty($result['text']),
+            'reason'  => $result['_failure_reason'] ?? (!empty($result['text']) ? 'ok' : 'no text returned'),
+        ];
     }
 
     private function trySmalotParser(string $pdfPath): array
@@ -124,10 +143,14 @@ class ScreeningController extends Controller
                     'char_count' => strlen($text)
                 ];
             }
+            return [
+                'text' => '',
+                '_failure_reason' => 'parsed only ' . strlen($text) . ' chars (need >50) — likely an image-based/scanned PDF with no real text layer',
+            ];
         } catch (\Exception $e) {
             Log::debug("Smalot failed: " . $e->getMessage());
+            return ['text' => '', '_failure_reason' => 'exception: ' . $e->getMessage()];
         }
-        return ['text' => ''];
     }
 
     //   Reconstruct text from OCR.space overlay data, preserving line breaks, blank lines, and indentation.
@@ -199,19 +222,77 @@ class ScreeningController extends Controller
     {
         try {
             $pdfContent = file_get_contents($pdfPath);
-            if (!$pdfContent) return ['text' => ''];
+            if (!$pdfContent) return ['text' => '', '_failure_reason' => 'could not read file from disk'];
 
-            $client = new \GuzzleHttp\Client(['timeout' => 45]);
+            $fileSizeMb = round(strlen($pdfContent) / 1024 / 1024, 2);
+
+            // NEW: surface when we're silently relying on the hardcoded
+            // demo/personal key. That key's quota (25,000 req/month, 500/day
+            // on OCR.space's free tier) is shared across EVERY environment
+            // that doesn't set OCR_SPACE_API_KEY — dev, staging, and prod all
+            // drawing from the same bucket will exhaust it fast, and nothing
+            // before this would have told you that's what happened.
+            $apiKey = env('OCR_SPACE_API_KEY');
+            if (!$apiKey) {
+                Log::warning('OCR_SPACE_API_KEY not set in .env — using shared hardcoded fallback key. Its quota is shared across every environment running this code.');
+                $apiKey = 'K89222848088957';
+            }
+
+            if ($fileSizeMb > 1.0) {
+                // OCR.space's free API tier caps out around 1MB/file. Canva
+                // and other image-heavy exports — exactly the PDFs this
+                // method exists for — routinely land above that. We still
+                // attempt the call (the cap isn't razor-precise) but log it
+                // loudly so this is the first thing you see, not something
+                // you have to guess at.
+                Log::warning("Cloud OCR: file is {$fileSizeMb}MB, over OCR.space's free-tier ~1MB cap — likely to be rejected.");
+            }
+
+            // FIXED: OCR.space validates the upload by its FILENAME
+            // extension, not its actual bytes. $pdfPath is sometimes a raw
+            // upload temp file (Laravel's UploadedFile::getRealPath() —
+            // e.g. C:\Windows\Temp\php1A2B.tmp on Windows), which has no
+            // .pdf extension at all, so basename($pdfPath) alone gets
+            // rejected with "File does not have a valid extension" even
+            // though we already know it's a PDF (validated via `mimes:pdf`
+            // before we ever reach this method).
+            $ocrFilename = basename($pdfPath);
+            if (!preg_match('/\.(pdf|jpe?g|png|bmp|gif|tiff?|webp)$/i', $ocrFilename)) {
+                $ocrFilename = 'upload.pdf';
+            }
+
+            // UNBLOCK: the Windows CA-bundle path (cURL error 60 -> error 77
+            // trying to point curl.cainfo/Guzzle at a bundle file) burned
+            // more time than it was worth to chase further here. Skip TLS
+            // verification, but ONLY in the local environment — this must
+            // never reach staging/production, since resumes carry real PII
+            // (names, emails, phone numbers) and disabling verification
+            // there would expose that traffic to interception. Revisit the
+            // proper CA-bundle fix (likely a Windows file-permission issue
+            // on whatever account Apache's service runs as, given the file
+            // sits under C:\Users\...\Documents) once this isn't blocking
+            // active testing.
+            $verify = true;
+            if (app()->environment('local')) {
+                $verify = false;
+            } elseif (file_exists(storage_path('certs/cacert.pem'))) {
+                $verify = storage_path('certs/cacert.pem');
+            }
+
+            $client = new \GuzzleHttp\Client([
+                'timeout' => 45,
+                'verify'  => $verify,
+            ]);
             $response = $client->post('https://api.ocr.space/parse/image', [
                 'multipart' => [
                     [
                         'name' => 'file',
                         'contents' => $pdfContent,
-                        'filename' => basename($pdfPath)
+                        'filename' => $ocrFilename
                     ],
                     [
                         'name' => 'apikey',
-                        'contents' => env('OCR_SPACE_API_KEY', 'K89222848088957')
+                        'contents' => $apiKey
                     ],
                     [
                         'name' => 'language',
@@ -235,12 +316,28 @@ class ScreeningController extends Controller
                 ]
             ]);
 
-            $data   = json_decode($response->getBody(), true);
+            $data = json_decode($response->getBody(), true);
+
+            // NEW: OCR.space very often responds HTTP 200 with a JSON body
+            // that signals failure (file too large, quota exceeded, engine
+            // timeout, unsupported file) rather than throwing an HTTP-level
+            // error. The old code never inspected this, so a real OCR
+            // failure and "the API just didn't find text" were
+            // indistinguishable. This is most likely where your failures
+            // are actually coming from.
+            if (($data['IsErroredOnProcessing'] ?? false) === true) {
+                $rawErr = $data['ErrorMessage'] ?? 'unknown error';
+                $errMsg = is_array($rawErr) ? implode('; ', $rawErr) : $rawErr;
+                $exitCode = $data['OCRExitCode'] ?? '?';
+                Log::warning("Cloud OCR reported an error (ExitCode {$exitCode}): {$errMsg} | file size {$fileSizeMb}MB");
+                return ['text' => '', '_failure_reason' => "OCR.space error (ExitCode {$exitCode}): {$errMsg} [file: {$fileSizeMb}MB]"];
+            }
+
             $result = $data['ParsedResults'][0] ?? [];
 
-            // NEW: prefer structure-reconstructed text. Fall back to the
-            // old flat ParsedText if no overlay came back (e.g. the image
-            // type didn't support it, or overlay data was empty).
+            // Prefer structure-reconstructed text. Fall back to the old flat
+            // ParsedText if no overlay came back (e.g. the image type
+            // didn't support it, or overlay data was empty).
             $overlayLines = $result['TextOverlay']['Lines'] ?? [];
             $text = !empty($overlayLines)
                 ? trim($this->reconstructTextFromOverlay($overlayLines))
@@ -255,23 +352,37 @@ class ScreeningController extends Controller
                     'text' => $text,
                     'method' => 'cloud_ocr',
                     'page_count' => 1,
-                    'char_count' => strlen($text)
+                    'char_count' => strlen($text),
+                    'used_overlay' => !empty($overlayLines),
                 ];
             }
+
+            return [
+                'text' => '',
+                '_failure_reason' => empty($result)
+                    ? "ParsedResults came back empty [file: {$fileSizeMb}MB] — request likely rejected without an explicit error flag"
+                    : 'parsed only ' . strlen($text) . " chars (need >50) [file: {$fileSizeMb}MB]",
+            ];
         } catch (\Exception $e) {
             Log::debug("Cloud OCR failed: " . $e->getMessage());
+            return ['text' => '', '_failure_reason' => 'exception: ' . $e->getMessage()];
         }
-        return ['text' => ''];
     }
 
     private function tryHeuristic(string $pdfPath): array
     {
         try {
             $content = file_get_contents($pdfPath);
-            if (!$content) return ['text' => ''];
+            if (!$content) return ['text' => '', '_failure_reason' => 'could not read file from disk'];
 
-            // Extract PDF metadata (Author, Title, etc.)
-            preg_match_all('/\/(Title|Subject|Author|Creator|Producer|Keywords)\s*\$([^)]+)\$/', $content, $matches);
+            // FIXED: this previously looked for metadata values wrapped in
+            // literal "$" characters (\$([^)]+)\$), which essentially never
+            // matches anything real — PDF string values are delimited by
+            // parentheses, e.g. `/Title (My Resume)`, not dollar signs. That
+            // typo meant this half of the heuristic almost never contributed
+            // anything; it was quietly running on the name-pattern regex
+            // below alone.
+            preg_match_all('/\/(Title|Subject|Author|Creator|Producer|Keywords)\s*\(([^)]*)\)/', $content, $matches);
             $metadata = trim(implode(' ', $matches[2] ?? []));
 
             // Extract name-like patterns
@@ -287,10 +398,10 @@ class ScreeningController extends Controller
                     'char_count' => strlen($text)
                 ];
             }
+            return ['text' => '', '_failure_reason' => 'found only ' . strlen($text) . ' chars of metadata/name-pattern matches (need >20)'];
         } catch (\Exception $e) {
-            // Silent fail
+            return ['text' => '', '_failure_reason' => 'exception: ' . $e->getMessage()];
         }
-        return ['text' => ''];
     }
 
     // ----------------------------------------------------------------
@@ -312,6 +423,69 @@ class ScreeningController extends Controller
         $count = count($matches[0]);
         
         return $count > 0 ? $count : 1;
+    }
+
+    /**
+     * Pure structural diagnostics on already-extracted text — independent of
+     * whatever the Flask scorer reports. Exists specifically to answer:
+     * "did the extractor preserve real line/paragraph/indentation structure,
+     * or did it collapse the resume into one undifferentiated blob?"
+     *
+     * This matters because formatting_score / organization_score on the
+     * Flask side lean on exactly these signals (blank-line ratio, bullet/
+     * indent detection, line lengths) — if extraction flattens everything
+     * into 1-2 giant lines, presentation scoring becomes meaningless no
+     * matter how good the OCR text recognition itself was.
+     */
+    private function analyzeTextStructure(string $text): array
+    {
+        if ($text === '') {
+            return [
+                'line_count'             => 0,
+                'blank_line_count'       => 0,
+                'indented_line_count'    => 0,
+                'avg_line_length'        => 0,
+                'longest_line_length'    => 0,
+                'looks_like_single_blob' => true,
+            ];
+        }
+
+        $lines      = explode("\n", $text);
+        $lineCount  = count($lines);
+        $blankCount = 0;
+        $indentCount = 0;
+        $lengths    = [];
+
+        foreach ($lines as $line) {
+            if (trim($line) === '') {
+                $blankCount++;
+                continue;
+            }
+            // Mirrors the kind of leading-whitespace check the presentation
+            // scorer uses to spot bullets/indentation.
+            if (preg_match('/^\s{2,}/', $line)) {
+                $indentCount++;
+            }
+            $lengths[] = mb_strlen($line);
+        }
+
+        $avgLen  = count($lengths) ? array_sum($lengths) / count($lengths) : 0;
+        $longest = count($lengths) ? max($lengths) : 0;
+
+        // Heuristic: a resume genuinely has tens of lines. If extraction
+        // produced ~1-2 lines holding a few hundred+ characters, line breaks
+        // were lost somewhere in the pipeline (most likely ParsedText fallback
+        // instead of overlay reconstruction, or overlay data came back empty).
+        $singleBlob = $lineCount <= 2 && mb_strlen($text) > 300;
+
+        return [
+            'line_count'             => $lineCount,
+            'blank_line_count'       => $blankCount,
+            'indented_line_count'    => $indentCount,
+            'avg_line_length'        => round($avgLen, 1),
+            'longest_line_length'    => $longest,
+            'looks_like_single_blob' => $singleBlob,
+        ];
     }
 
     // ----------------------------------------------------------------
@@ -346,20 +520,39 @@ class ScreeningController extends Controller
 
             // 2. Execute Production File Storage/Retrieval Simulations
             $tempPath = $pdfFile->getRealPath();
-            $resumeText = '';
             $feedback = [];
             $startTime = microtime(true);
 
-            // 3. EXECUTE PRODUCTION PARSER (Smalot)
-            $parser     = new Parser();
-            $pdf        = $parser->parseFile($tempPath);
-            $pages      = $pdf->getPages();
-            $resumeText = trim(implode("\n\n", array_map(fn($p) => $p->getText(), $pages)));
-            $pageCount  = $this->extractPdfPageCount($tempPath);
+            // 3. EXECUTE PRODUCTION EXTRACTION PIPELINE
+            //    CHANGED: was calling Smalot\PdfParser directly, which meant
+            //    the sandbox could never reach the Cloud OCR / overlay-
+            //    reconstruction branch — exactly the code path you're trying
+            //    to validate. Now it runs the real production pipeline
+            //    (Smalot -> Cloud OCR w/ overlay -> heuristic), same as
+            //    evaluateApplicants() uses, so uploading an image-based/Canva
+            //    PDF here actually exercises isOverlayRequired.
+            $extracted        = $this->extractTextUltimate($tempPath);
+            $resumeText        = $extracted['text'];
+            $extractionMethod = $extracted['method'];
+            $pageCount        = $extracted['page_count'] ?: $this->extractPdfPageCount($tempPath);
 
             if (empty($resumeText)) {
-                $feedback[] = 'PDF parsed but no text extracted — file may be image-based or corrupt';
+                $feedback[] = 'All extraction methods failed — file may be image-based, corrupt, or unsupported';
+            } elseif ($extractionMethod === 'heuristic') {
+                // The heuristic tier only ever recovers PDF metadata (title/
+                // author) and stray capitalized-word matches — never real
+                // resume body content. If this fires, Smalot AND Cloud OCR
+                // both failed first; check 'pipeline_trace' in this response
+                // for why.
+                $feedback[] = '⚠ Heuristic fallback used — only metadata/name-pattern matches were recovered, not real resume content. All scores below are unreliable.';
+            } else {
+                $feedback[] = "Extracted via: {$extractionMethod}";
             }
+
+            // NEW: structural diagnostics — the direct answer to "one chunk
+            // vs. real layout", computed straight off the extracted string,
+            // independent of the Flask scorer.
+            $structure = $this->analyzeTextStructure($resumeText);
 
             // 4. DISPATCH PAYLOAD VIA LARAVEL HTTP CLIENT
             $response = Http::timeout(60)->post('http://127.0.0.1:5000/analyze', [
@@ -412,11 +605,23 @@ class ScreeningController extends Controller
             // 6. RETURN COMPLETE TELEMETRY
             return response()->json([
                 'success' => true,
-                'parser_used' => 'Smalot\\PdfParser\\Parser (Production Standard)',
+                'parser_used' => "extractTextUltimate() — Smalot \u{2192} Cloud OCR (overlay) \u{2192} Heuristic",
+                'extraction_method' => $extractionMethod,
                 'php_execution_latency_ms' => $executionTime,
+                // NEW: full text, not just a preview — the sandbox view renders
+                // this verbatim (monospace, white-space preserved) so you can
+                // see exactly where line breaks/indentation did or didn't land.
+                'extracted_text' => $resumeText,
                 'extracted_text_preview' => mb_strimwidth($resumeText, 0, 800, '...'),
                 'extracted_char_count' => strlen($resumeText),
                 'page_count' => $pageCount,
+                'text_structure' => $structure,
+                // NEW: what each tier tried and why it succeeded/failed —
+                // e.g. "cloud_ocr: OCR.space error (ExitCode 3): file too
+                // large [file: 2.4MB]" tells you definitively that file size
+                // is the problem, instead of guessing from "heuristic was
+                // used" alone.
+                'pipeline_trace' => $extracted['attempts'] ?? [],
                 'calculated_scores' => [
                     'final_score' => $finalScore,
                     'qualifications_score' => $qualificationsScore,
@@ -515,6 +720,8 @@ class ScreeningController extends Controller
         foreach ($applications as $application) {
             $result = $this->baseResult($application);
             $feedback = [];
+            $resumeText = '';
+            $extracted = ['page_count' => 1];
 
             //  NEW EXTRACTION (handles ALL PDFs!)
             if ($application->resume_path) {
