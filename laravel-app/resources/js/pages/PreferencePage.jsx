@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import DashboardLayout    from '../layouts/DashboardLayout';
-import PreferenceSection  from '../components/PreferenceSection';
+import PreferenceSection, { PreferenceSubGroup } from '../components/PreferenceSection';
 import '../../css/pages/preferences.css';
 
 /* Slider + number input row */
@@ -44,16 +44,6 @@ const WeightRow = ({ label, value, onChange, disabled = false }) => {
     </div>
   );
 };
-
-/** Total validation row */
-const TotalRow = ({ total }) => (
-  <p className={`pref-total-row${total === 100 ? ' pref-total-row--ok' : ' pref-total-row--bad'}`}>
-    Total:{' '}
-    <strong>
-      {total}% {total === 100 ? '✓' : '(must equal 100%)'}
-    </strong>
-  </p>
-);
 
 /**
  * Rebalances a group of weights so the group always sums to exactly 100.
@@ -120,6 +110,10 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
   const [prefLanguage,     setPrefLanguage]     = useState(!!pref?.pref_language);
   const [prefConciseness,  setPrefConciseness]  = useState(!!pref?.pref_conciseness);
   const [prefOrganization, setPrefOrganization] = useState(!!pref?.pref_organization);
+
+  const [qualSubExpanded,    setQualSubExpanded]    = useState((pref?.qual_weight        ?? 80) >= 1);
+  const [skillsSubExpanded,  setSkillsSubExpanded]  = useState((pref?.skills_weight      ?? 45) >= 1);
+  const [presSubExpanded,    setPresSubExpanded]    = useState((pref?.presentation_weight ?? 20) >= 1);
 
   const [error, setError]   = useState('');
   const [success, setSuccess] = useState(flash?.success ?? '');
@@ -233,84 +227,104 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
         {success && <div className="pref-flash pref-flash--success">{success}</div>}
  
         <div className="pref-page__content">
- 
-          {/* Final Score Weights */}
+
           <PreferenceSection
             title="Final Score Weights"
-            subtitle="How much each component contributes to the final ranking score (must total 100%)."
+            subtitle="How much each component contributes to the final ranking score."
           >
             <WeightRow
               label="Qualifications"
               value={qualWeight}
               onChange={(val) => setFinalGroup(0, val)}
             />
+
+            <PreferenceSubGroup
+              parentValue={qualWeight}
+              title="Sub-Weights"
+              expanded={qualSubExpanded}
+              onExpandedChange={setQualSubExpanded}
+            >
+              <WeightRow
+                label="Skills Match"
+                value={skillsWeight}
+                onChange={(val) => setSubGroup(0, val)}
+              />
+
+              <PreferenceSubGroup
+                parentValue={skillsWeight}
+                title="Qualifications"
+                subtitle="Skills Matching — TF-IDF + Semantic."
+                expanded={skillsSubExpanded}
+                onExpandedChange={setSkillsSubExpanded}
+              >
+                <WeightRow
+                  label="TF-IDF (Keyword)"
+                  value={keywordWeight}
+                  onChange={(val) => setBlendGroup(0, val)}
+                />
+                <WeightRow
+                  label="Semantic (AI)"
+                  value={semanticWeight}
+                  onChange={(val) => setBlendGroup(1, val)}
+                />
+              </PreferenceSubGroup>
+
+              <WeightRow
+                label="Experience"
+                value={experienceWeight}
+                onChange={(val) => setSubGroup(1, val)}
+              />
+              <WeightRow
+                label="Education"
+                value={educationWeight}
+                onChange={(val) => setSubGroup(2, val)}
+              />
+              <WeightRow
+                label="Certification"
+                value={certWeight}
+                onChange={(val) => setSubGroup(3, val)}
+              />
+            </PreferenceSubGroup>
+
             <WeightRow
               label="Presentation"
               value={presentationWeight}
               onChange={(val) => setFinalGroup(1, val)}
             />
-            <TotalRow total={qualWeight + presentationWeight} />
-            <p className="pref-note">Presentation = 100 − Qualifications (auto-set).</p>
-          </PreferenceSection>
- 
-          {/* Qualifications */}
-          <PreferenceSection
-            title="Qualifications"
-            subtitle="Skills Matching — TF-IDF + Semantic (blend must total 100%)."
-          >
-            <WeightRow label="TF-IDF (Keyword)" value={keywordWeight}  onChange={(val) => setBlendGroup(0, val)} />
-            <WeightRow label="Semantic (AI)"    value={semanticWeight} onChange={(val) => setBlendGroup(1, val)} />
-            <TotalRow total={blendTotal} />
- 
-            
+
+            <PreferenceSubGroup
+              parentValue={presentationWeight}
+              title="Selections"
+              expanded={presSubExpanded}
+              onExpandedChange={setPresSubExpanded}
+            >
+              <p className="pref-pres-note">{getPresNote()}</p>
+              <div className="pref-selector">
+                {[
+                  { label: 'Organization & Structure', desc: 'Sections, margins, reverse-chronological order', value: prefOrganization, setter: setPrefOrganization },
+                  { label: 'Conciseness',              desc: 'Word count, page length, minimal repetition',    value: prefConciseness,  setter: setPrefConciseness },
+                  { label: 'Language Quality',         desc: 'Action verbs, formal tone, no typos',            value: prefLanguage,     setter: setPrefLanguage },
+                  { label: 'Formatting & Visuals',     desc: 'Section spacing, B&W layout',                   value: prefFormatting,   setter: setPrefFormatting },
+                ].map(({ label, desc, value, setter }) => (
+                  <label
+                    key={label}
+                    className={`pref-selector__btn${value ? ' pref-selector__btn--active' : ''}`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={value}
+                      onChange={(e) => setter(e.target.checked)}
+                    />
+                    <span className="pref-selector__btn-label">{label}</span>
+                    <span className="pref-selector__btn-desc">{desc}</span>
+                  </label>
+                ))}
+              </div>
+            </PreferenceSubGroup>
+
+
           </PreferenceSection>
 
-          {/* Presentation */}
-          <PreferenceSection
-            title="Presentation"
-            subtitle="Check which categories to score. Checked categories split 100% equally. If none are checked, all four share 25% each."
-          >
-            <div className="pref-selector__grid">
-              {[
-                { label: 'Formatting & Visuals',     desc: 'Section spacing, B&W layout',                   value: prefFormatting,   setter: setPrefFormatting },
-                { label: 'Language Quality',         desc: 'Action verbs, formal tone, no typos',            value: prefLanguage,     setter: setPrefLanguage },
-                { label: 'Conciseness',              desc: 'Word count, page length, minimal repetition',    value: prefConciseness,  setter: setPrefConciseness },
-                { label: 'Organization & Structure', desc: 'Sections, margins, reverse-chronological order', value: prefOrganization, setter: setPrefOrganization },
-              ].map(({ label, desc, value, setter }) => (
-                <label
-                  key={label}
-                  className={`pref-selector__btn${value ? ' pref-selector__btn--active' : ''}`}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={value}
-                    onChange={(e) => setter(e.target.checked)}
-                    style={{ marginRight: 7, width: 15, height: 15, accentColor: '#2563eb', verticalAlign: 'middle' }}
-                  />
-                  <span className="pref-selector__btn-label" style={{ verticalAlign: 'middle' }}>{label}</span>
-                  <span className="pref-selector__btn-desc" style={{ display: 'block', marginTop: 3 }}>{desc}</span>
-                </label>
-              ))}
-            </div>
-            <p className="pref-pres-note">{getPresNote()}</p>
-          </PreferenceSection>
-
-          <PreferenceSection
-            title="Qualification Sub-weights"
-            subtitle="(must total 100%)">
-            <div className="pref-sub-section">
-              <h4 className="pref-sub-section__title">
-
-              </h4>
-              <WeightRow label="Skills Match"  value={skillsWeight}     onChange={(val) => setSubGroup(0, val)} />
-              <WeightRow label="Experience"    value={experienceWeight} onChange={(val) => setSubGroup(1, val)} />
-              <WeightRow label="Education"     value={educationWeight}  onChange={(val) => setSubGroup(2, val)} />
-              <WeightRow label="Certification" value={certWeight}       onChange={(val) => setSubGroup(3, val)} />
-              <TotalRow total={qualTotal} />
-            </div>
-          </PreferenceSection>
- 
         </div>
  
         {/* Mobile sticky save bar */}
