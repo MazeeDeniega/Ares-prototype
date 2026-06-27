@@ -1,5 +1,5 @@
 import { useState } from "react";
-import "./styles/jobapplicationform.css";
+import "../../css/pages/jobapplicationform.css";
 
 const initialForm = {
   first_name: "",
