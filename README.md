@@ -18,6 +18,7 @@ php artisan serve
 cd laravel-app
 npm install
 npm install @vitejs/plugin-react
+npm install react-table --force
 npm install react-icons --save
 npm run dev
 ```

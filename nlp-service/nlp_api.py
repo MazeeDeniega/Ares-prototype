@@ -140,13 +140,25 @@ ALIAS_MAP = {
     "networks":                  "network",
 }
 
+_ALIAS_REGEXES = [
+    (re.compile(r'(?<!\w)' + re.escape(alias) + r'(?!\w)'), canonical)
+    for alias, canonical in sorted(ALIAS_MAP.items(), key=lambda x: -len(x[0]))
+]
+
 def normalize_text(text: str) -> str:
-    """Lower-case and expand known aliases to canonical skill names."""
+    """Lower-case and expand known aliases to canonical skill names.
+
+    Uses word-boundary-safe matching (not raw substring replace), so an
+    alias like "ai" only matches the standalone token "ai" and never the
+    letters "ai" sitting inside unrelated words — e.g. "Aircall", "gmail",
+    "maintain", "training" must NOT be touched by the "ai" -> "machine
+    learning" alias. Same applies to short aliases "ml", "ts", "py", "js".
+    Sort by length descending so longer aliases (e.g. "ruby on rails")
+    match before shorter substrings (e.g. "rails").
+    """
     text = text.lower()
-    # Sort by length descending so longer aliases (e.g. "ruby on rails") match before
-    # shorter substrings (e.g. "rails").
-    for alias, canonical in sorted(ALIAS_MAP.items(), key=lambda x: -len(x[0])):
-        text = text.replace(alias, canonical)
+    for pattern, canonical in _ALIAS_REGEXES:
+        text = pattern.sub(canonical, text)
     return text
 
 
@@ -384,6 +396,23 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         'internship', 'employment', 'work'
     ]
     section_hits = sum(1 for s in expected_sections if s in heading_text)
+
+    non_blank_lines  = [l for l in lines if l.strip()]
+    avg_words_per_line = (word_count / len(non_blank_lines)) if non_blank_lines else 0
+    structure_confidence = 'low' if avg_words_per_line > 40 else 'high'
+
+    if section_hits == 0 and structure_confidence == 'low':
+        fallback_hits = sum(
+            1 for s in expected_sections if re.search(r'\b' + re.escape(s) + r'\b', text)
+        )
+        if fallback_hits > section_hits:
+            section_hits = fallback_hits
+            feedback.setdefault("organization", []).append(
+                "Section keywords were found in the text, but line breaks appear to "
+                "have been lost during extraction (e.g. OCR or flattened PDF) — "
+                "heading detection used a lower-confidence text-wide fallback."
+            )
+
     if section_hits >= 3:
         organization_score += 0.4
     elif section_hits >= 1:
@@ -435,12 +464,14 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
     )
 
     return {
-        "presentation_score":  presentation_score,
-        "formatting_score":    formatting_score,
-        "language_score":      language_score,
-        "concise_score":       concise_score,
-        "organization_score":  organization_score,
-        "layout_feedback":     feedback,
+        "presentation_score":   presentation_score,
+        "formatting_score":     formatting_score,
+        "language_score":       language_score,
+        "concise_score":        concise_score,
+        "organization_score":   organization_score,
+        "layout_feedback":      feedback,
+        "structure_confidence": structure_confidence,
+        "avg_words_per_line":   round(avg_words_per_line, 1),
     }
 
 
@@ -552,6 +583,11 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'concise_score':         layout['concise_score'],
         'organization_score':    layout['organization_score'],
         'layout_feedback':       layout['layout_feedback'],
+        # Extraction-quality signal (new) — lets callers / debug UI tell
+        # when presentation scoring ran on text that likely lost its
+        # original line structure during extraction (OCR, etc).
+        'structure_confidence':  layout['structure_confidence'],
+        'avg_words_per_line':    layout['avg_words_per_line'],
         # Normalized text (useful for debug)
         'resume_normalized':     resume,
         # Internal metadata (used by debug panel; safe to expose)
