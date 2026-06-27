@@ -108,7 +108,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
   const { csrf, pref, flash } = window.__LARAVEL__ ?? {};
 
   const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 80);
-  const [presentWeight,    setPresentWeight]    = useState(pref?.present_weight     ?? 20);
+  const [presentationWeight,    setPresentWeight]    = useState(pref?.presentation_weight     ?? 20);
   const [keywordWeight,    setKeywordWeight]    = useState(pref?.keyword_weight     ?? 40);
   const [semanticWeight,   setSemanticWeight]   = useState(pref?.semantic_weight    ?? 60);
   const [skillsWeight,     setSkillsWeight]     = useState(pref?.skills_weight      ?? 45);
@@ -130,7 +130,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
   // Each group auto-rebalances so its sliders always sum to exactly 100.
   const setFinalGroup = (index, val) => {
-    const [q, p] = rebalanceGroup([qualWeight, presentWeight], index, val);
+    const [q, p] = rebalanceGroup([qualWeight, presentationWeight], index, val);
     setQualWeight(q);
     setPresentWeight(p);
   };
@@ -186,6 +186,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
         },
         body: JSON.stringify({
           qual_weight:        qualWeight,
+          presentation_weight:     presentationWeight, // This is not being saved
           keyword_weight:     keywordWeight,
           semantic_weight:    semanticWeight,
           skills_weight:      skillsWeight,
@@ -245,10 +246,10 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
             />
             <WeightRow
               label="Presentation"
-              value={presentWeight}
+              value={presentationWeight}
               onChange={(val) => setFinalGroup(1, val)}
             />
-            <TotalRow total={qualWeight + presentWeight} />
+            <TotalRow total={qualWeight + presentationWeight} />
             <p className="pref-note">Presentation = 100 − Qualifications (auto-set).</p>
           </PreferenceSection>
  
