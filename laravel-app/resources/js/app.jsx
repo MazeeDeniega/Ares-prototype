@@ -9,7 +9,6 @@ import DashboardRecruiter from './pages/DashboardRecruiter';
 import JobList from './pages/JobList';
 import JobApplicationForm from './pages/JobApplicationForm';
 import JobPost from './pages/JobPost';
-import Evaluate from './pages/Evaluate';
 import DefaultPreferences from './pages/DefaultPreference';
 import JobPreference from './pages/JobPreference';
 import DashboardCandidates from './pages/DashboardCandidates';
