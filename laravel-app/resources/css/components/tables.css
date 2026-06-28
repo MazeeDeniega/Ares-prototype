@@ -127,10 +127,14 @@ tr td {
   border-radius: var(--radius-sm);
 }
 
-.JobListTable .job-title {
+.JobListTable .job-title,
+.RankingTable .job-title {
   font-size: var(--text-3xl);
   font-weight: 700;
   margin-bottom: var(--space-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ----------------------------------------------------------------
@@ -139,8 +143,8 @@ tr td {
 .pref-bar {
   font-size: 0.83em;
   color: #555;
-  background: var(--color-bg-white);
-  border: 1px solid #e5e7eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   padding: 8px 12px;
   border-radius: 6px;
   margin-bottom: 18px;
@@ -148,13 +152,20 @@ tr td {
 
 .edit-pref-btn-ranking {
   background: #fff;
-  color: #3a6fd1;
+  color: var(--color-primary-dark);
   border: 1px solid #b3c7ee;
   border-radius: 8px;
   padding: 8px 20px;
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
+}
+
+.edit-pref-btn-ranking:hover {
+  background: var(--color-primary-hover);
+  border-color: #93c5fd;
+  color: var(--color-text-white);
+  transition: background var(--transition-normal), color var(--transition-normal);
 }
 
 /* ----------------------------------------------------------------
@@ -164,13 +175,13 @@ tr td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #2563eb;
+  background: var(--color-primary-dark);
   color: white;
   border-radius: 50%;
   width: 30px;
   height: 30px;
   font-weight: bold;
-  font-size: 0.95em;
+  font-size: var(--text-base);
 }
 
 /* ----------------------------------------------------------------
