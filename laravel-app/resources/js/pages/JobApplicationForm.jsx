@@ -82,6 +82,8 @@ export default function JobApplicationForm() {
         body: data,
       });
 
+      console.log('Response status: ', res.status);
+
       if (!res.ok) {
         // FIX: Define contentType before using it
         const contentType = res.headers.get("content-type");
@@ -298,6 +300,7 @@ export default function JobApplicationForm() {
                 <label>Highest Education</label>
                 <select 
                   value={form.highest_education} 
+                  required
                   onChange={e => set("highest_education", e.target.value)}
                   style={{ borderColor: errors.highest_education ? 'red' : '#ccc' }}
                 >
@@ -374,9 +377,9 @@ export default function JobApplicationForm() {
               </div>
 
               <div className="field">
-                <label>Resume</label>
+                <label>Resume <span>*</span></label>
                 <div className={`upload-zone ${form.resume_path ? "has-file" : ""}`}>
-                  <input type="file" accept=".pdf,.doc,.docx,.jpg,.png" onChange={e => handleFile("resume_path", e.target.files[0])} />
+                  <input type="file" required accept=".pdf,.doc,.docx,.jpg,.png" onChange={e => handleFile("resume_path", e.target.files[0])} />
                   <svg className="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <path d="M12 16V8m0 0l-3 3m3-3l3 3M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                   </svg>

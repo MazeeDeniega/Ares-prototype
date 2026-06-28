@@ -122,14 +122,6 @@ function DocumentsCell({ row }) {
   );
 }
 
-function EditPreferencesButton({ onClick }) {
-  return (
-    <button onClick={onClick} className="edit-pref-btn-ranking">
-      Edit Preferences
-    </button>
-  );
-}
-
 function PrefBar({ pref }) {
   const presLabels = [
     pref.formatting_weight > 0 ? `Formatting ${pref.formatting_weight}%` : null,
@@ -172,8 +164,10 @@ function RankingTable({ jobTitle = "Job", rankings = [], pref = {}, onEditPrefer
     <div className="RankingTable">
       <div className="container">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <h1 style={{ margin: 0 }}>Ranking Results — {jobTitle}</h1>
-          <EditPreferencesButton onClick={onEditPreferences} />
+          <h1 className="job-title" style={{ margin: 0 }}>Ranking Results - {jobTitle}</h1>
+          <button onClick={onEditPreferences} className="edit-pref-btn-ranking">
+            Edit Preferences
+          </button>
         </div>
 
         <PrefBar pref={pref} />
