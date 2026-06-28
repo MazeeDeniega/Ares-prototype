@@ -98,7 +98,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
   const { csrf, pref, flash } = window.__LARAVEL__ ?? {};
 
   const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 80);
-  const [presentationWeight,    setPresentWeight]    = useState(pref?.presentation_weight     ?? 20);
+  const [layoutWeight,    setLayoutWeight]      = useState(pref?.layout_weight      ?? 20);
   const [keywordWeight,    setKeywordWeight]    = useState(pref?.keyword_weight     ?? 40);
   const [semanticWeight,   setSemanticWeight]   = useState(pref?.semantic_weight    ?? 60);
   const [skillsWeight,     setSkillsWeight]     = useState(pref?.skills_weight      ?? 45);
@@ -113,7 +113,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
   const [qualSubExpanded,    setQualSubExpanded]    = useState((pref?.qual_weight        ?? 80) >= 1);
   const [skillsSubExpanded,  setSkillsSubExpanded]  = useState((pref?.skills_weight      ?? 45) >= 1);
-  const [presSubExpanded,    setPresSubExpanded]    = useState((pref?.presentation_weight ?? 20) >= 1);
+  const [presSubExpanded,    setPresSubExpanded]    = useState((pref?.layout_weight      ?? 20) >= 1);
 
   const [error, setError]   = useState('');
   const [success, setSuccess] = useState(flash?.success ?? '');
@@ -124,9 +124,9 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
   // Each group auto-rebalances so its sliders always sum to exactly 100.
   const setFinalGroup = (index, val) => {
-    const [q, p] = rebalanceGroup([qualWeight, presentationWeight], index, val);
+    const [q, p] = rebalanceGroup([qualWeight, layoutWeight], index, val);
     setQualWeight(q);
-    setPresentWeight(p);
+    setLayoutWeight(p);
   };
 
   const setBlendGroup = (index, val) => {
@@ -180,7 +180,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
         },
         body: JSON.stringify({
           qual_weight:        qualWeight,
-          presentation_weight:     presentationWeight, // This is not being saved
+          layout_weight:     layoutWeight, // This is not being saved
           keyword_weight:     keywordWeight,
           semantic_weight:    semanticWeight,
           skills_weight:      skillsWeight,
@@ -288,12 +288,12 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
             <WeightRow
               label="Presentation"
-              value={presentationWeight}
+              value={layoutWeight}
               onChange={(val) => setFinalGroup(1, val)}
             />
 
             <PreferenceSubGroup
-              parentValue={presentationWeight}
+              parentValue={layoutWeight}
               title="Selections"
               expanded={presSubExpanded}
               onExpandedChange={setPresSubExpanded}
