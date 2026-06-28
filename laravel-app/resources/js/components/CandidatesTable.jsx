@@ -1,4 +1,4 @@
-import "./styles/Tables.css";
+import "../../css/components/tables.css";
 import * as React from "react";
 import { useTable } from "react-table";
 
@@ -29,6 +29,7 @@ function StatusBadge({ status }) {
 
 function CandidatesTable() {
   const [data, setData] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
 
   React.useEffect(() => {
     fetch('/api/candidates', {
@@ -40,7 +41,8 @@ function CandidatesTable() {
     })
       .then(res => res.json())
       .then(json => setData(json))
-      .catch(err => console.error('Failed to fetch candidates:', err));
+      .catch(err => console.error('Failed to fetch candidates:', err))
+      .finally(() => setLoading(false));
   }, []);
 
   const columns = React.useMemo(
@@ -85,16 +87,31 @@ function CandidatesTable() {
             ))}
           </thead>
           <tbody {...getTableBodyProps()}>
-            {rows.map((row) => {
+            {loading ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                  <tr className="table-row-rec table-row-skeleton" key={`skeleton-${i}`}>
+                    <td><span className="skeleton-cell skeleton-title" /></td>
+                    <td><span className="skeleton-cell skeleton-desc" /></td>
+                    <td style={{ textAlign: 'center' }}><span className="skeleton-cell skeleton-count" /></td>
+                    <td className="action-btns">
+                      <span className="skeleton-cell skeleton-btn" />
+                      <span className="skeleton-cell skeleton-btn" />
+                    </td>
+                  </tr>
+                ))
+            ) : (
+              rows.map((row) => {
               prepareRow(row);
               return (
                 <tr {...row.getRowProps()}>
                   {row.cells.map((cell) => (
-                    <td {...cell.getCellProps()}>{cell.render("Cell")}</td>
+                    <td className="candidates-row" {...cell.getCellProps()}>{cell.render("Cell")}</td>
                   ))}
                 </tr>
               );
-            })}
+            })
+          )}
+            
           </tbody>
         </table>
       </div>

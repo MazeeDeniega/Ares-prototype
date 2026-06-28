@@ -5,7 +5,7 @@ import { useState } from 'react';
 export default function DashboardEvaluate() {
   const { job, csrf } = window.__LARAVEL__ ?? {};
   const applications = job?.applications ?? [];
-  const [loading, setLoading] = useState(false);
+  const [evaluating, setEvaluating] = useState(false);
  
   document.title = `Evaluate - ${job?.title ?? 'Job'}`;
  
@@ -20,7 +20,7 @@ export default function DashboardEvaluate() {
  
   const handleEvaluate = () => {
     if (!job) return;
-    setLoading(true);
+    setEvaluating(true);
     // Full navigation — runs evaluation server-side, lands on the results view.
     window.location.href = `/screening/${job.id}/evaluate`;
   };
@@ -32,8 +32,8 @@ export default function DashboardEvaluate() {
         candidateCount={applications.length}
         candidates={candidates}
         onEvaluate={handleEvaluate}
+        evaluating={evaluating}
       />
-      {loading && <p style={{ padding: '0 24px', color: '#555' }}>Evaluating…</p>}
     </DashboardLayout>
   );
 }

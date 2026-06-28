@@ -53,8 +53,16 @@ function JobListTable({
   candidateCount = 0,
   onEvaluate = () => {},
   candidates = [],
+  evaluating,
 }) {
+  const [loading, setLoading] = React.useState(true);
   const data = React.useMemo(() => candidates, [candidates]);
+
+  React.useEffect(() => {
+    Promise.resolve().then(() => {console.log("Loading? ", loading)
+      setLoading(false)});
+  }, []);
+
   const columns = React.useMemo(
     () => [
       { Header: "#", accessor: "#" },
@@ -101,7 +109,10 @@ function JobListTable({
           <h1 style={{ margin: 0 }}>
             {jobTitle} ({candidateCount})
           </h1>
-          <EvaluateButton onClick={onEvaluate} />
+          <button className="evaluate-btn" onClick={onEvaluate}>
+            {evaluating ? "Evaluating…" : "Evaluate"}
+          </button>
+
         </div>
 
         <table {...getTableProps()}>
@@ -115,23 +126,40 @@ function JobListTable({
             ))}
           </thead>
           <tbody {...getTableBodyProps()}>
-            {rows.map((row) => {
-              prepareRow(row);
-              return (
-                <tr {...row.getRowProps()}>
-                  {row.cells.map((cell) => (
-                    <td {...cell.getCellProps()}> {cell.render("Cell")} </td>
-                  ))}
+            {loading ? (
+              Array.from({ length: 4 }).map((_, i) => (
+                  <tr className="table-row-rec table-row-skeleton" key={`skeleton-${i}`}>
+                    <td><span className="skeleton-cell skeleton-title" /></td>
+                    <td><span className="skeleton-cell skeleton-desc" /></td>
+                    <td style={{ textAlign: 'center' }}><span className="skeleton-cell skeleton-count" /></td>
+                    <td className="action-btns">
+                      <span className="skeleton-cell skeleton-btn" />
+                      <span className="skeleton-cell skeleton-btn" />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <>
+              {rows.map((row) => {
+                prepareRow(row);
+                return (
+                  <tr {...row.getRowProps()}>
+                    {row.cells.map((cell) => (
+                      <td {...cell.getCellProps()}> {cell.render("Cell")} {loading}</td>
+                    ))}
+                  </tr>
+                );
+              })}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={5} style={{ textAlign: "center", padding: "20px" }}>
+                    No applicants yet.
+                  </td>
                 </tr>
-              );
-            })}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={5} style={{ textAlign: "center", padding: "20px" }}>
-                  No applicants yet.
-                </td>
-              </tr>
-            )}
+              )}
+            </>
+          )}
+
           </tbody>
         </table>
       </div>

@@ -86,6 +86,10 @@ tr td {
   text-overflow: ellipsis;
 }
 
+.candidates-row {
+  text-align: center;
+}
+
 /* ----------------------------------------------------------------
    JobListTable / RankingTable container + plain tables
    (used when not wrapped in .themed-table-wrapper)
@@ -114,6 +118,13 @@ tr td {
   background: var(--color-primary);
   text-align: center;
   color: var(--text-dark);
+}
+
+.JobListTable .evaluate-btn {
+  background: var(--color-primary);
+  border: none;
+  padding: 6px 12px;
+  border-radius: var(--radius-sm);
 }
 
 /* ----------------------------------------------------------------
@@ -283,4 +294,82 @@ tr td {
   margin: 3px 0;
   font-size: 0.85em;
   color: #2563eb;
+}
+
+/* =================== Loading section =================== */
+/* ─────────────────────────────────────────────
+   Skeleton loading — DashboardRecruiter
+   Add these rules to your existing stylesheet.
+───────────────────────────────────────────── */
+
+/* Shared shimmer animation */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+/* Base skeleton cell */
+.skeleton-cell {
+  display: inline-block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    #e8e8e8 25%,
+    #f4f4f4 50%,
+    #e8e8e8 75%
+  );
+  background-size: 600px 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Prevent the skeleton row from being clickable / showing hover style */
+.table-row-skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.table-row-skeleton:hover {
+  background: inherit;
+}
+
+/* Size variants */
+.skeleton-title {
+  width: 140px;
+  height: 14px;
+}
+
+.skeleton-desc {
+  width: 260px;
+  height: 14px;
+}
+
+.skeleton-count {
+  width: 28px;
+  height: 14px;
+}
+
+.skeleton-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  margin: 0 2px;
+}
+
+/* Stagger opacity so rows don't all pulse in sync */
+.table-row-skeleton:nth-child(1) .skeleton-cell { animation-delay: 0s;    }
+.table-row-skeleton:nth-child(2) .skeleton-cell { animation-delay: 0.15s; }
+.table-row-skeleton:nth-child(3) .skeleton-cell { animation-delay: 0.30s; }
+.table-row-skeleton:nth-child(4) .skeleton-cell { animation-delay: 0.45s; }
+
+/* Dark-mode support (optional — remove if you don't use dark mode) */
+@media (prefers-color-scheme: dark) {
+  .skeleton-cell {
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 25%,
+      #363636 50%,
+      #2a2a2a 75%
+    );
+    background-size: 600px 100%;
+  }
 }

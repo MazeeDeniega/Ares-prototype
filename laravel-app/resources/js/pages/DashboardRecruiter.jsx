@@ -1,5 +1,6 @@
-import { useState } from "react";
-import './styles/dashboardadmin.css';
+import { useState, useEffect } from "react";
+import { Link } from "react-router";
+import '../../css/pages/dashboardrecruiter.css';
 import AddJobModal from "../components/AddJobModal";
 import DashboardLayout from "../layouts/DashboardLayout";
 import { BsPencilSquare, BsTrash } from 'react-icons/bs';
@@ -10,6 +11,12 @@ export default function DashboardRecruiter() {
   const [jobs, setJobs] = useState(window.__LARAVEL__?.jobs || []);
   const [flash, setFlash] = useState({ success: null, error: null });
   const [showModal, setShowModal] = useState(false);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setLoading(false)});
+  }, []);
 
   const stripHtml = (html) => {
     const div = document.createElement('div');
@@ -54,15 +61,13 @@ export default function DashboardRecruiter() {
           <h2 className="rec-page-title">Your Jobs</h2>
 
           <div className="header-buttons">
-
-            <a href="/preferences/edit">
+            <Link to="/preferences/edit">
               <button className="edit-pref-btn" type="button">Default Preferences</button>
-            </a>
+            </Link>
 
             <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>
               + New Job
             </button>
-
           </div>
         </div>
 
@@ -85,40 +90,57 @@ export default function DashboardRecruiter() {
               </tr>
             </thead>
             <tbody className="table-body-rec">
-              {jobs.map((job) => (
-                <tr
-                  className="table-row-rec"
-                  key={job.id}
-                  onClick={() => (window.location.href = `/screening/${job.id}`)}
-                >
-                  <td>{job.title}</td>
-                  <td className="table-job-desc">{stripHtml(job.description)}</td>
-                  <td style={{ textAlign: "center" }}>
-                    {job.applications_count ?? job.applications?.length ?? 0}
-                  </td>
-                  <td className="action-btns" onClick={(e) => e.stopPropagation()}>
-                    <a href={`/jobs/${job.id}/preferences`}>
-                      <button className="icon-btn edit-icon-btn" type="button" title="Edit preferences">
-                        <BsPencilSquare />
-                      </button>
-                    </a>
-                    <button
-                      className="icon-btn delete-icon-btn"
-                      type="button"
-                      title="Delete job"
-                      onClick={() => handleDelete(job.id)}
+              {loading ? (
+                /* ── skeleton rows ── */
+                Array.from({ length: 4 }).map((_, i) => (
+                  <tr className="table-row-rec table-row-skeleton" key={`skeleton-${i}`}>
+                    <td><span className="skeleton-cell skeleton-title" /></td>
+                    <td><span className="skeleton-cell skeleton-desc" /></td>
+                    <td style={{ textAlign: 'center' }}><span className="skeleton-cell skeleton-count" /></td>
+                    <td className="action-btns">
+                      <span className="skeleton-cell skeleton-btn" />
+                      <span className="skeleton-cell skeleton-btn" />
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <>
+                  {jobs.map((job) => (
+                    <tr
+                      className="table-row-rec"
+                      key={job.id}
+                      onClick={() => (window.location.href = `/screening/${job.id}`)}
                     >
-                      <BsTrash />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {jobs.length === 0 && (
-                <tr>
-                  <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: '#888' }}>
-                    No jobs posted yet.
-                  </td>
-                </tr>
+                      <td>{job.title}</td>
+                      <td className="table-job-desc">{stripHtml(job.description)}</td>
+                      <td style={{ textAlign: "center" }}>
+                        {job.applications_count ?? job.applications?.length ?? 0}
+                      </td>
+                      <td className="action-btns" onClick={(e) => e.stopPropagation()}>
+                        <a href={`/jobs/${job.id}/preferences`}>
+                          <button className="icon-btn edit-icon-btn" type="button" title="Edit preferences">
+                            <BsPencilSquare />
+                          </button>
+                        </a>
+                        <button
+                          className="icon-btn delete-icon-btn"
+                          type="button"
+                          title="Delete job"
+                          onClick={() => handleDelete(job.id)}
+                        >
+                          <BsTrash />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {jobs.length === 0 && (
+                    <tr>
+                      <td colSpan={4} style={{ textAlign: 'center', padding: '24px', color: '#888' }}>
+                        No jobs posted yet.
+                      </td>
+                    </tr>
+                  )}
+                </>
               )}
             </tbody>
           </table>

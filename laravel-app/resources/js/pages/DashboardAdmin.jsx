@@ -1,6 +1,5 @@
 import { useState } from 'react';
-import NavBar from '../components/NavBar';
-import './styles/dashboardrecruiter.css';
+import '../../css/pages/dashboardadmin.css';
 
 export default function AdminDashboard() {
   const { user, csrf, flash } = window.__LARAVEL__;
