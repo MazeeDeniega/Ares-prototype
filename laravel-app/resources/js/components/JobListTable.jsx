@@ -106,7 +106,7 @@ function JobListTable({
             marginBottom: "16px",
           }}
         >
-          <h1 style={{ margin: 0 }}>
+          <h1 className="job-title">
             {jobTitle} ({candidateCount})
           </h1>
           <button className="evaluate-btn" onClick={onEvaluate}>

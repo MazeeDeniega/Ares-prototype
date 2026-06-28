@@ -119,7 +119,7 @@ a:hover {
  
 button {
   cursor: pointer;
-  font-family: var(--font-body);
+  font-family: var(--font-display);
 }
  
 input {
