@@ -61,9 +61,9 @@ export default function DashboardRecruiter() {
           <h2 className="rec-page-title">Your Jobs</h2>
 
           <div className="header-buttons">
-            <Link to="/preferences/edit">
+            {/* <Link to="/preferences/edit">
               <button className="edit-pref-btn" type="button">Default Preferences</button>
-            </Link>
+            </Link> */}
 
             <button className="add-job-btn" type="button" onClick={() => setShowModal(true)}>
               + New Job

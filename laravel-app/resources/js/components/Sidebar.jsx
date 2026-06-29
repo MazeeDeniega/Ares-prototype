@@ -36,17 +36,17 @@ export default function Sidebar({ isOpen, onClose }) {
       {/* Nav */}
       <nav className="sidebar__nav" aria-label="Main navigation">
         {navItems.map((item) => (
-          <NavLink
+          <a
             key={item.to}
-            to={item.to}
+            href={item.to}
             onClick={onClose}
-            className={({ isActive }) =>
-              'sidebar__nav-item' + (isActive ? ' sidebar__nav-item--active' : '')
+            className={
+              'sidebar__nav-item' + (window.location.pathname === item.to ? ' sidebar__nav-item--active' : '')
             }
           >
             <span className="sidebar__nav-icon">{item.icon}</span>
             {item.label}
-          </NavLink>
+          </a>
         ))}
       </nav>
 
@@ -79,17 +79,17 @@ export default function Sidebar({ isOpen, onClose }) {
         </div>
         <nav className="sidebar__nav" aria-label="Main navigation">
           {navItems.map((item) => (
-            <NavLink
+            <a
               key={item.to}
-              to={item.to}
+              href={item.to}
               onClick={onClose}
-              className={({ isActive }) =>
-                'sidebar__nav-item' + (isActive ? ' sidebar__nav-item--active' : '')
+              className={
+                'sidebar__nav-item' + (window.location.pathname === item.to ? ' sidebar__nav-item--active' : '')
               }
             >
               <span className="sidebar__nav-icon">{item.icon}</span>
               {item.label}
-            </NavLink>
+            </a>
           ))}
         </nav>
         <button className="sidebar__logout" onClick={handleLogout}>
