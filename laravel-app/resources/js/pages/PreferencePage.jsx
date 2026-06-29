@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import DashboardLayout    from '../layouts/DashboardLayout';
 import PreferenceSection, { PreferenceSubGroup } from '../components/PreferenceSection';
 import '../../css/pages/preferences.css';
@@ -95,7 +95,7 @@ function rebalanceGroup(values, changedIndex, newValue) {
 }
 
 export default function PreferencePage({ title, subtitle, postUrl }) {
-  const { csrf, pref, flash } = window.__LARAVEL__ ?? {};
+  const { csrf, pref, flash, job } = window.__LARAVEL__ ?? {};
 
   const [qualWeight,       setQualWeight]       = useState(pref?.qual_weight        ?? 80);
   const [layoutWeight,    setLayoutWeight]      = useState(pref?.layout_weight      ?? 20);
@@ -117,6 +117,10 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
   const [error, setError]   = useState('');
   const [success, setSuccess] = useState(flash?.success ?? '');
+  const [secondsLeft, setSecondsLeft] = useState(5);
+  const [redirect, setRedirect] = useState(false);
+  const targetTimeRef = useRef(null);
+  const intervalRef = useRef(null);
 
   // const presWeight = 100 - qualWeight;
   const blendTotal = keywordWeight + semanticWeight;
@@ -164,7 +168,6 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
       active.map((v, i) => `${v.label}: ${each + (i === 0 ? remainder : 0)}%`).join(', ')
     );
   };
-
   const handleSubmit = async (e) => {
     if (e?.preventDefault) e.preventDefault();
     setError('');
@@ -195,7 +198,10 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
       });
  
       if (response.ok) {
-        setSuccess('Preferences saved successfully!');
+        setSuccess('Preferences saved successfully! ');
+        if (postUrl === `/jobs/${job.id}/preferences`)
+          setRedirect(true);
+
       } else {
         try {
           const data = await response.json();
@@ -205,9 +211,28 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
         }
       }
     } catch (err) {
+      console.error('Network error:', err);
       setError('Network error — could not reach the server.');
     }
   };
+
+  useEffect(() => {
+    if (redirect){
+    
+    targetTimeRef.current = Date.now() + (secondsLeft * 1000); // 5 seconds from now
+    intervalRef.current = setInterval(() => {
+      const now = Date.now();
+      const remaining = Math.max(0, Math.round((targetTimeRef.current - now) / 1000));
+      setSecondsLeft(remaining);
+      console.log('Seconds left:', remaining);
+      if (remaining <= 0) {
+        clearInterval(intervalRef.current);
+        window.location.href = `/screening/${job.id}`;
+      }
+    }, 1000);
+    return () => clearInterval(intervalRef.current);
+  }}, [redirect]);
+
 
   return (
     <DashboardLayout title={title} subtitle={subtitle}>
@@ -224,7 +249,10 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
  
         {/* Flash messages */}
         {error   && <div className="pref-flash pref-flash--error">{error}</div>}
-        {success && <div className="pref-flash pref-flash--success">{success}</div>}
+        {success && <div className="pref-flash pref-flash--success">
+          {success} 
+          Redirecting to evaluation in <strong>{secondsLeft} second{secondsLeft !== 1 ? 's' : ''}</strong>...
+        </div>}
  
         <div className="pref-page__content">
 
