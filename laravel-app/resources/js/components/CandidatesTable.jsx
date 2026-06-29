@@ -112,15 +112,21 @@ function CandidatesTable() {
       <div className="themed-table-wrapper">
         <table {...getTableProps()}>
           <thead>
-            {headerGroups.map((headerGroup) => (
-              <tr {...headerGroup.getHeaderGroupProps()}>
-                {headerGroup.headers.map((column) => (
-                  <th {...column.getHeaderProps()}>
-                    {column.render("Header")}
-                  </th>
-                ))}
-              </tr>
-            ))}
+            {headerGroups.map((headerGroup) => {
+              const { key, ...headerGroupProps } = headerGroup.getHeaderGroupProps();
+              return (
+                <tr key={key} {...headerGroupProps}>
+                  {headerGroup.headers.map((column) => {
+                    const { key: colKey, ...columnProps } = column.getHeaderProps();
+                    return (
+                      <th key={colKey} {...columnProps}>
+                        {column.render("Header")}
+                      </th>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </thead>
           <tbody {...getTableBodyProps()}>
             {loading ? (
