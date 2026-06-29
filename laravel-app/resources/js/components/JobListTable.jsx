@@ -1,68 +1,18 @@
 import "../../css/components/tables.css";
 import * as React from "react";
 import { useTable } from "react-table";
+import { StatusSelect, normalizeStatusValue } from "./CandidateStatus";
 
-const statusStyles = {
-  Pending: { backgroundColor: "#FF8C00", color: "#fff" },
-  Approved: { backgroundColor: "#28a745", color: "#fff" },
-  Rejected: { backgroundColor: "#dc3545", color: "#fff" },
-  Interview: { backgroundColor: "#FFEB3B", color: "#000" },
-};
-
-function StatusBadge({ status }) {
-  const style = statusStyles[status] || {};
-  return (
-    <span
-      style={{
-        ...style,
-        padding: "4px 12px",
-        borderRadius: "12px",
-        fontWeight: "bold",
-        fontSize: "0.85rem",
-        display: "inline-block",
-      }}
-    >
-      {status}
-    </span>
-  );
-}
-
-function EvaluateButton({ onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      style={{
-        backgroundColor: "#4a7dff",
-        color: "#fff",
-        border: "none",
-        borderRadius: "8px",
-        padding: "10px 24px",
-        fontSize: "1rem",
-        fontWeight: "600",
-        cursor: "pointer",
-      }}
-    >
-      Evaluate
-    </button>
-  );
-}
-
-// candidates: [{ "#": 1, Name, Email, status, Resume }]
+// candidates: [{ id, "#": 1, Name, Email, status, Resume }]
 function JobListTable({
   jobTitle = "Job Title",
   candidateCount = 0,
   onEvaluate = () => {},
+  onStatusChange,
+  updatingId = null,
   candidates = [],
   evaluating,
 }) {
-  const [loading, setLoading] = React.useState(true);
-  const data = React.useMemo(() => candidates, [candidates]);
-
-  React.useEffect(() => {
-    Promise.resolve().then(() => {console.log("Loading? ", loading)
-      setLoading(false)});
-  }, []);
-
   const columns = React.useMemo(
     () => [
       { Header: "#", accessor: "#" },
@@ -71,17 +21,28 @@ function JobListTable({
       {
         Header: "Status",
         accessor: "status",
-        Cell: ({ value }) => <StatusBadge status={value} />,
+        Cell: ({ row }) =>
+          row.original.id && onStatusChange ? (
+            <StatusSelect
+              value={normalizeStatusValue(row.original.status)}
+              onChange={(newStatus) => onStatusChange(row.original.id, newStatus)}
+              disabled={updatingId === row.original.id}
+            />
+          ) : (
+            row.original.status
+          ),
       },
       {
         Header: "Resume",
         accessor: "Resume",
         Cell: ({ value }) =>
           value ? (
-            <a href={value} 
-              target="_blank" 
+            <a
+              href={value}
+              target="_blank"
               rel="noopener noreferrer"
-              style={{ color: "#1a73e8", textDecoration: "underline" }}>
+              style={{ color: "#1a73e8", textDecoration: "underline" }}
+            >
               View Resume
             </a>
           ) : (
@@ -89,11 +50,11 @@ function JobListTable({
           ),
       },
     ],
-    []
+    [onStatusChange, updatingId]
   );
 
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
-    useTable({ columns, data });
+    useTable({ columns, data: candidates });
 
   return (
     <div className="JobListTable">
@@ -112,7 +73,6 @@ function JobListTable({
           <button className="evaluate-btn" onClick={onEvaluate}>
             {evaluating ? "Evaluating…" : "Evaluate"}
           </button>
-
         </div>
 
         <table {...getTableProps()}>
@@ -126,44 +86,29 @@ function JobListTable({
             ))}
           </thead>
           <tbody {...getTableBodyProps()}>
-            {loading ? (
-              Array.from({ length: 4 }).map((_, i) => (
-                  <tr className="table-row-rec table-row-skeleton" key={`skeleton-${i}`}>
-                    <td><span className="skeleton-cell skeleton-title" /></td>
-                    <td><span className="skeleton-cell skeleton-desc" /></td>
-                    <td style={{ textAlign: 'center' }}><span className="skeleton-cell skeleton-count" /></td>
-                    <td className="action-btns">
-                      <span className="skeleton-cell skeleton-btn" />
-                      <span className="skeleton-cell skeleton-btn" />
-                    </td>
-                  </tr>
-                ))
-              ) : (
-                <>
-              {rows.map((row) => {
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={5} style={{ textAlign: "center", padding: "20px" }}>
+                  No applicants yet.
+                </td>
+              </tr>
+            ) : (
+              rows.map((row) => {
                 prepareRow(row);
                 return (
                   <tr {...row.getRowProps()}>
                     {row.cells.map((cell) => (
-                      <td {...cell.getCellProps()}> {cell.render("Cell")} {loading}</td>
+                      <td {...cell.getCellProps()}>{cell.render("Cell")}</td>
                     ))}
                   </tr>
                 );
-              })}
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={5} style={{ textAlign: "center", padding: "20px" }}>
-                    No applicants yet.
-                  </td>
-                </tr>
-              )}
-            </>
-          )}
-
+              })
+            )}
           </tbody>
         </table>
       </div>
     </div>
   );
 }
+
 export default JobListTable;

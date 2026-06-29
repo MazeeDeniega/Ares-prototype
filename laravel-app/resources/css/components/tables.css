@@ -8,6 +8,22 @@
   box-sizing: border-box;
 }
 
+.candidate-status-select {
+  appearance: none;
+  min-width: 110px;
+  text-align: center;
+  outline: none;
+}
+
+.candidate-status-select:disabled {
+  opacity: 0.7;
+}
+
+.candidate-status-select option {
+  color: #000;
+  background: #fff;
+}
+
 .themed-table-wrapper {
   /* max-height: 600px; */
   /* overflow-y: scroll; */
