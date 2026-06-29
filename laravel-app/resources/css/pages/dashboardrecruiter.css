@@ -1,0 +1,158 @@
+.rec-main-cont {
+/* display: flex; */
+width: 100%;
+flex-direction: column;
+padding: 28px 32px;
+}
+
+/* ── Page header: title + New Job button ── */
+.rec-page-header {
+display: flex;
+align-items: center;
+justify-content: space-between;
+margin-bottom: 20px;
+}
+
+.rec-page-title {
+font-size: var(--text-3xl);
+font-weight: 700;
+margin: 0;
+}
+
+/* ── Table card ── */
+.rec-inner-cont {
+border-radius: var(--radius-md);
+display: flex;
+flex-direction: column;
+box-shadow: var(--shadow-card);
+overflow: hidden;
+}
+
+/* ── Top row: flash messages + Default Preferences button ── */
+.table-top {
+display: flex;
+align-items: center;
+justify-content: space-between;
+}
+
+.header-buttons {
+display: flex;
+align-items: center;
+gap: var(--space-sm);
+}
+
+.edit-pref-btn {
+padding: 6px 12px;
+border: 2px solid var(--color-primary);
+border-radius: 4px;
+background-color: white;
+color: var(--color-primary-dark);
+font-size: var(--text-sm);
+cursor: pointer;
+transition: background var(--transition-fast);
+}
+
+.edit-pref-btn:hover {
+background-color: var(--color-primary-hover);
+color: var(--color-text-white);
+border: 2px solid var(--color-primary-hover);
+}
+
+/* ── Add Job button ── */
+.add-job-btn {
+border-radius: var(--radius-sm);
+border: none;
+background-color: var(--color-primary);
+padding: 8px 16px;
+font-size: var(--text-sm);
+font-weight: 500;
+cursor: pointer;
+transition: background 0.15s;
+}
+
+.add-job-btn:hover {
+background-color: var(--color-primary-hover);
+color: var(--color-text-white);
+}
+
+.table-main {
+width: 100%;
+border-collapse: collapse;
+margin-top: 12px;
+}
+
+.table-heading th {
+background-color: var(--color-primary);
+padding: var(--space-sm) var(--space-md);
+text-align: center;
+font-size: var(--text-base);
+font-weight: 600;
+color: black;
+}
+
+.table-body-rec tr td {
+padding: 14px 16px;
+border-bottom: 1px solid var(--color-primary-light);
+font-size: var(--text-base);
+}
+
+.table-body-rec tr:last-child td {
+border-bottom: none;
+}
+
+.table-row-rec:hover {
+cursor: pointer;
+background-color: #f0f4ff;
+}
+
+.table-job-desc {
+max-width: 400px;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+}
+
+.action-btns {
+width: 100%;
+height: auto;
+display: flex;
+align-items: center;
+justify-content: center;
+gap: var(--space-sm);
+}
+
+.icon-btn {
+border-radius: 6px;
+border: none;
+padding: var(--space-xs);
+background: transparent;
+cursor: pointer;
+font-size: var(--text-lg);
+display: inline-flex;
+align-items: center;
+justify-content: center;
+transition: background 0.15s;
+}
+
+.edit-icon-btn {
+color: var(--color-primary-dark);
+}
+
+.edit-icon-btn:hover {
+background-color: var(--color-primary-light);
+}
+
+.delete-icon-btn {
+color: var(--color-error);
+}
+
+.delete-icon-btn:hover {
+background-color: var(--color-error);
+color: var(--color-text-white);
+}
+
+/* ── Flash messages ── */
+.flash-message p {
+margin: 0;
+font-size: 0.875rem;
+}

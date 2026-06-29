@@ -66,6 +66,7 @@ Route::middleware(['auth', 'role:recruiter'])->group(function () {
     Route::get('/screening/{jobId}', [ScreeningController::class, 'showJobApplicants']);
     Route::get('/candidates', [DashboardController::class, 'index']); 
     Route::get('/api/candidates', [ScreeningController::class, 'getAllCandidates']);
+    Route::patch('/api/candidates/{id}', [ScreeningController::class, 'updateCandidateStatus']);
 
     Route::match(['get', 'post'], '/screening/{jobId}/evaluate', [ScreeningController::class, 'evaluateApplicants'])->name('screen.evaluate');
     Route::get('/jobs/{id}/preferences', [PreferenceController::class, 'editJobPreference']);

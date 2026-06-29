@@ -17,8 +17,8 @@ const QUILL_JS  = 'https://cdnjs.cloudflare.com/ajax/libs/quill/1.3.7/quill.min.
 const TOOLBAR_OPTIONS = [
   [{ header: [1, 2, 3, false] }],
   ['link'],
-  ['bold', 'italic', 'underline'],
-  [{ list: 'ordered' }, { list: 'bullet' }],
+  ['bold', 'italic', 'underline', { 'color': [] }, { 'background': [] }],
+  [{ 'align': [] }, { indent: '-1' }, { indent: '+1' }, { list: 'ordered' }, { list: 'bullet' }]
 ];
 
 /** Dynamically inject Quill CSS + JS from CDN if not already present. */
