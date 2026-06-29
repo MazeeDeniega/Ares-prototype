@@ -88,13 +88,13 @@ export default function AuthForm({
           {secondaryBtns.length > 0 && (
             <div className="auth-btn-row">
               {secondaryBtns.map((action) => (
-                <Link
+                <a
                   key={action.label} 
-                  to={action.to}
+                  href={action.to}
                   className="auth-btn-outline"
                 >
                   {action.label}
-                </Link>
+                </a>
               ))}
             </div>
           )}
