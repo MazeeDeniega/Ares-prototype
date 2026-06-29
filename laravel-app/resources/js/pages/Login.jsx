@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { BsFillLockFill, BsEnvelopeFill } from "react-icons/bs";
 import AuthForm from '../components/AuthForm';
-import './styles/login.css';
 
 export default function Login() {
   const navigate = useNavigate();

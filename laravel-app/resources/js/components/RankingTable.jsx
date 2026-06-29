@@ -1,6 +1,7 @@
-import "./styles/Tables.css";
+import "../../css/components/tables.css";
 import * as React from "react";
 import { useTable } from "react-table";
+import { StatusSelect, normalizeStatusValue } from "./CandidateStatus";
 
 function RankBadge({ rank }) {
   return <span className="rank-badge">{rank}</span>;
@@ -122,14 +123,6 @@ function DocumentsCell({ row }) {
   );
 }
 
-function EditPreferencesButton({ onClick }) {
-  return (
-    <button onClick={onClick} className="edit-pref-btn-ranking">
-      Edit Preferences
-    </button>
-  );
-}
-
 function PrefBar({ pref }) {
   const presLabels = [
     pref.formatting_weight > 0 ? `Formatting ${pref.formatting_weight}%` : null,
@@ -151,29 +144,51 @@ function PrefBar({ pref }) {
 
 // rankings: array of result objects (same shape ScreeningController::evaluateApplicants returns)
 // pref: weight preferences object
-function RankingTable({ jobTitle = "Job", rankings = [], pref = {}, onEditPreferences = () => {} }) {
-  const data = React.useMemo(() => rankings, [rankings]);
+function RankingTable({
+  jobTitle = "Job",
+  rankings = [],
+  pref = {},
+  onEditPreferences = () => {},
+  onStatusChange,
+  updatingId = null,
+}) {
   const columns = React.useMemo(
     () => [
       { Header: "Rank", id: "rank", accessor: (row, i) => i + 1, Cell: ({ value }) => <RankBadge rank={value} /> },
       { Header: "Candidate", accessor: "first_name", Cell: NameCell },
       { Header: "Contact", accessor: "email", Cell: ContactCell },
+      {
+        Header: "Status",
+        accessor: "status",
+        Cell: ({ row }) =>
+          row.original.application_id && onStatusChange ? (
+            <StatusSelect
+              value={normalizeStatusValue(row.original.status)}
+              onChange={(newStatus) => onStatusChange(row.original.application_id, newStatus)}
+              disabled={updatingId === row.original.application_id}
+            />
+          ) : (
+            row.original.status ?? "Pending"
+          ),
+      },
       { Header: "Final Score", accessor: "final_score", Cell: (props) => <FinalScoreCell {...props} pref={pref} /> },
       { Header: "Details", accessor: "skills", Cell: DetailsCell },
       { Header: "Documents", accessor: "resume_path", Cell: DocumentsCell },
     ],
-    [pref]
+    [pref, onStatusChange, updatingId]
   );
 
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
-    useTable({ columns, data });
+    useTable({ columns, data: rankings });
 
   return (
     <div className="RankingTable">
       <div className="container">
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
-          <h1 style={{ margin: 0 }}>Ranking Results — {jobTitle}</h1>
-          <EditPreferencesButton onClick={onEditPreferences} />
+          <h1 className="job-title" style={{ margin: 0 }}>Ranking Results - {jobTitle}</h1>
+          <button onClick={onEditPreferences} className="edit-pref-btn-ranking">
+            Edit Preferences
+          </button>
         </div>
 
         <PrefBar pref={pref} />
@@ -218,7 +233,7 @@ function RankingTable({ jobTitle = "Job", rankings = [], pref = {}, onEditPrefer
               })}
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} style={{ textAlign: "center", padding: "20px" }}>
+                  <td colSpan={7} style={{ textAlign: "center", padding: "20px" }}>
                     No ranked candidates yet.
                   </td>
                 </tr>

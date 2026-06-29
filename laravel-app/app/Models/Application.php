@@ -22,8 +22,16 @@ class Application extends Model
     ];
 
     const STATUS_PENDING = 'pending';
-    const STATUS_ACCEPTED = 'accepted';
+    const STATUS_APPROVED = 'approved';
     const STATUS_REJECTED = 'rejected';
+    const STATUS_INTERVIEW = 'interview';
+
+    const VALID_STATUSES = [
+        self::STATUS_PENDING,
+        self::STATUS_APPROVED,
+        self::STATUS_REJECTED,
+        self::STATUS_INTERVIEW,
+    ];
 
     const ENGAGEMENT_FULL_TIME = 'full_time';
     const ENGAGEMENT_PART_TIME = 'part_time';

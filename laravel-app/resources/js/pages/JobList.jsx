@@ -22,10 +22,10 @@ export default function JobList() {
 
       {/* Heading*/}
       <header className="job-openings-header">
-        <Link to="/login" className="job-openings-back">
+        <a href="/login" className="job-openings-back">
               <BsArrowLeft />
               Log in
-        </Link>
+        </a>
         <h1 className="job-openings-header__title">Current Job Openings</h1>
         <p className="job-openings-header__subtitle">
           See a job that fits you? Apply now!

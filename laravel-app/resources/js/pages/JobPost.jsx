@@ -40,10 +40,11 @@ export default function JobPost() {
   
           <div className="job-desc-body">
             {/* Main description paragraph */}
-            <div
-            className="job-desc-quill-content ql-editor"
-            dangerouslySetInnerHTML={{ __html: htmlContent }}
-            />
+              <div
+              className="job-desc-quill-content ql-editor"
+              dangerouslySetInnerHTML={{ __html: htmlContent }}
+              />
+            
             {/* {job?.description && <p>{job?.description}</p>} */}
   
   
