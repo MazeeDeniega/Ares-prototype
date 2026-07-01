@@ -2,6 +2,10 @@ import "../../css/components/tables.css";
 import * as React from "react";
 import { useTable } from "react-table";
 import { StatusSelect, normalizeStatusValue } from "./CandidateStatus";
+import Pagination from "./Pagination";
+import usePagination from "../hooks/usePagination";
+
+const PAGE_SIZE = 10;
 
 function RankBadge({ rank }) {
   return <span className="rank-badge">{rank}</span>;
@@ -152,9 +156,17 @@ function RankingTable({
   onStatusChange,
   updatingId = null,
 }) {
+  const { page, pageCount, pageItems: pagedRankings, setPage, offset } =
+    usePagination(rankings, PAGE_SIZE);
+
   const columns = React.useMemo(
     () => [
-      { Header: "Rank", id: "rank", accessor: (row, i) => i + 1, Cell: ({ value }) => <RankBadge rank={value} /> },
+      {
+        Header: "Rank",
+        id: "rank",
+        accessor: (row, i) => offset + i + 1,
+        Cell: ({ value }) => <RankBadge rank={value} />,
+      },
       { Header: "Candidate", accessor: "first_name", Cell: NameCell },
       { Header: "Contact", accessor: "email", Cell: ContactCell },
       {
@@ -175,11 +187,11 @@ function RankingTable({
       { Header: "Details", accessor: "skills", Cell: DetailsCell },
       { Header: "Documents", accessor: "resume_path", Cell: DocumentsCell },
     ],
-    [pref, onStatusChange, updatingId]
+    [pref, onStatusChange, updatingId, offset]
   );
 
   const { getTableProps, getTableBodyProps, headerGroups, rows, prepareRow } =
-    useTable({ columns, data: rankings });
+    useTable({ columns, data: pagedRankings });
 
   return (
     <div className="RankingTable">
@@ -241,6 +253,8 @@ function RankingTable({
             </tbody>
           </table>
         </div>
+
+        <Pagination page={page} pageCount={pageCount} onPageChange={setPage} />
       </div>
     </div>
   );
