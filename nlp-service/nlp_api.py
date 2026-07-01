@@ -474,6 +474,158 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         "avg_words_per_line":   round(avg_words_per_line, 1),
     }
 
+# ---------------------------------------------------------------------------
+# EXPERIENCE EXTRACTION AND CALCULATION
+# ---------------------------------------------------------------------------
+
+def extract_experience_section(resume_text: str) -> str:
+    """Isolates the text strictly under the Experience/Employment sections."""
+    lines = resume_text.splitlines()
+    
+    # Mirrors the heading logic from your existing classify_layout function
+    heading_pattern = re.compile(
+        r'^(EDUCATION|EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
+        r'|TRAINING|WORK HISTORY|EMPLOYMENT|PROFESSIONAL|TECHNICAL|RELEVANT'
+        r'|INTERNSHIP|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)',
+        re.IGNORECASE
+    )
+    
+    exp_pattern = re.compile(r'^(EXPERIENCE|WORK HISTORY|EMPLOYMENT|PROFESSIONAL|INTERNSHIP)', re.IGNORECASE)
+    
+    in_experience_section = False
+    experience_lines = []
+    
+    for line in lines:
+        stripped = line.strip()
+        if not stripped and not in_experience_section:
+            continue
+            
+        # Identify if the current line is a section heading
+        is_heading = False
+        if heading_pattern.match(stripped):
+            is_heading = True
+        # Catch all-caps fallback headings without numbers/emails
+        elif stripped.isupper() and 2 <= len(stripped.split()) <= 5 and not re.search(r'[\d@]', stripped):
+            is_heading = True
+            
+        if is_heading:
+            # Is it the experience section?
+            if exp_pattern.match(stripped) or "EXPERIENCE" in stripped.upper() or "EMPLOYMENT" in stripped.upper():
+                in_experience_section = True
+                experience_lines.append(line)
+            else:
+                # If we are already in the experience section and hit a NEW heading, stop parsing.
+                if in_experience_section:
+                    break
+        else:
+            if in_experience_section:
+                experience_lines.append(line)
+                
+    extracted = '\n'.join(experience_lines).strip()
+    
+    # Fallback: if no valid headings were detected (e.g. flattened PDF), return full text
+    return extracted if extracted else resume_text
+
+def _parse_date(date_str: str):
+    """Converts a date string (e.g., 'Jan 2020', '12/2019', '2018', 'Present') to a datetime object."""
+    date_str = date_str.lower().strip()
+    if date_str in ('present', 'current', 'now'):
+        return datetime.datetime.now() # <--- Updated here
+
+    # Match Month Year (e.g., Jan 2020, October 2018)
+    match = re.search(r'(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+(\d{4})', date_str)
+    if match:
+        month_str, year = match.groups()
+        month_map = {'jan':1, 'feb':2, 'mar':3, 'apr':4, 'may':5, 'jun':6, 
+                     'jul':7, 'aug':8, 'sep':9, 'oct':10, 'nov':11, 'dec':12}
+        return datetime.datetime(int(year), month_map[month_str], 1) # <--- Updated here
+
+    # Match MM/YYYY (e.g., 05/2019)
+    match = re.search(r'(\d{1,2})/(\d{4})', date_str)
+    if match:
+        m, y = match.groups()
+        if 1 <= int(m) <= 12:
+            return datetime.datetime(int(y), int(m), 1) # <--- Updated here
+
+    # Match YYYY (e.g., 2018)
+    match = re.search(r'^(\d{4})$', date_str)
+    if match:
+        return datetime.datetime(int(match.group(1)), 1, 1) # <--- Updated here
+
+    return None
+
+def calculate_experience_from_dates(resume_text: str) -> float:
+    """Parses date ranges, merges overlapping timelines, and returns total years."""
+    date_regex = r'((?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4})|(?:\d{1,2}/\d{4})|\b(?:19|20)\d{2}\b)'
+    separator = r'\s*(?:-|–|—|to)\s*'
+    end_regex = r'((?:(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{4})|(?:\d{1,2}/\d{4})|\b(?:19|20)\d{2}\b|present|current|now)'
+
+    pattern = re.compile(date_regex + separator + end_regex, re.IGNORECASE)
+    matches = pattern.findall(resume_text)
+
+    intervals = []
+    current_year = datetime.datetime.now().year # <--- Updated here
+
+    for start_str, end_str in matches:
+        start_date = _parse_date(start_str)
+        end_date = _parse_date(end_str)
+
+        if start_date and end_date and start_date <= end_date:
+            if 1960 <= start_date.year <= current_year and 1960 <= end_date.year <= current_year + 1:
+                intervals.append((start_date, end_date))
+
+    if not intervals:
+        return 0.0
+
+    intervals.sort(key=lambda x: x[0])
+    merged = [intervals[0]]
+
+    for current_start, current_end in intervals[1:]:
+        last_start, last_end = merged[-1]
+        if current_start <= last_end:
+            merged[-1] = (last_start, max(last_end, current_end))
+        else:
+            merged.append((current_start, current_end))
+
+    total_days = sum((end - start).days for start, end in merged)
+    return round(total_days / 365.25, 1)
+
+def extract_explicit_experience(resume_text: str) -> float:
+    """Extracts explicit mentions of experience strictly bound to context (e.g., 'five years of experience')."""
+    word_to_num = {'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 
+                   'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10}
+
+    # Strictly looks for "[Digit/Word] years of [professional] experience"
+    pattern = re.compile(
+        r'(?:(\d+)|(one|two|three|four|five|six|seven|eight|nine|ten))\+?\s*(?:yrs|years?)\s*(?:of)?\s*(?:professional|industry)?\s*experience', 
+        re.IGNORECASE
+    )
+    matches = pattern.findall(resume_text)
+
+    max_years = 0.0
+    for digit_match, word_match in matches:
+        val = int(digit_match) if digit_match else word_to_num.get(word_match.lower(), 0)
+        # Cap at 40 years to ignore crazy outliers
+        if 0 < val <= 40:
+            max_years = max(max_years, float(val))
+
+    return max_years
+
+def get_total_years_experience(resume_text: str) -> float:
+    """
+    Returns the higher of calculated timeline experience (strictly from the Experience section) 
+    vs explicit summary experience (searched globally).
+    """
+    exp_section_text = extract_experience_section(resume_text)
+    
+    # 1. Parse dates ONLY from the Experience section (ignores Education/Projects)
+    calc_years = calculate_experience_from_dates(exp_section_text)
+    
+    # 2. Parse explicit "X years of experience" from the FULL text (to catch the Summary block)
+    explicit_years = extract_explicit_experience(resume_text)
+    
+    return max(calc_years, explicit_years)
+
 
 # ---------------------------------------------------------------------------
 # SHARED CORE SCORING  (used by both /analyze and debug_routes)
@@ -522,10 +674,11 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
 
-    exp_years_raw = re.findall(r'(\d+)\s+years?', resume)
-    years_exp     = max(map(int, exp_years_raw)) if exp_years_raw else 0
-    if 'project' in resume and years_exp == 0:
-        years_exp = 1
+    # Replaced flawed regex with comprehensive date parsing and contextual fallback
+    years_exp            = get_total_years_experience(resume_raw) 
+    
+    # Cleaned up exp_years_detected for backward compatibility with your JSON output
+    exp_years_detected   = [int(years_exp)] if years_exp > 0 else []
 
     education_score, education_level = 0, 'none detected'
     if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
@@ -564,7 +717,7 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'job_skills_extracted':  job_skills_extracted,
         # Experience
         'years_experience':      years_exp,
-        'exp_years_detected':    list(map(int, exp_years_raw)),
+        'exp_years_detected':    exp_years_detected,
         # Education / Cert
         'education_score':       education_score,
         'certification_score':   cert_score,
