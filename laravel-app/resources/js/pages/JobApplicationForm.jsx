@@ -29,9 +29,7 @@ export default function JobApplicationForm() {
   const [status, setStatus] = useState(null);
   const [errors, setErrors] = useState({});
 
-  console.log('Job data:', job); 
   console.log('Job ID:', job?.id); 
-  console.log('Job title:', job?.title);
 
   const set = (key, value) => {
     setForm(f => ({ ...f, [key]: value }));
@@ -58,7 +56,7 @@ export default function JobApplicationForm() {
       const data = new FormData();
 
       const textFields = [
-        "first_name","last_name","email","city","province",
+        "first_name","last_name", "contact_number", "email","city","province",
         "postal_code","country","desired_pay","engagement_type",
         "date_available","highest_education","college_university",
         "referred_by","references"
@@ -97,6 +95,8 @@ export default function JobApplicationForm() {
               type: "error",
               message: "Please fix the highlighted errors and try again."
             });
+            console.log("errData: ", errData);
+            console.log("errData.errors: ", errData.errors);
             setLoading(false);
             return;
           }
@@ -184,7 +184,7 @@ export default function JobApplicationForm() {
                 <input 
                   value={form.contact_number} 
                   onChange={e => set("contact_number", e.target.value)} 
-                  placeholder="+63 9XX XXX XXXX" 
+                  placeholder="09XX XXX XXXX" 
                   style={{ borderColor: errors.contact_number ? 'red' : '#ccc' }}
                 />
                 {errors.contact_number && <small style={{ color: 'red' }}>{errors.contact_number[0]}</small>}
@@ -204,7 +204,7 @@ export default function JobApplicationForm() {
 
             <div className="row triple">
               <div className="field">
-                <label>City</label>
+                <label>City <span>*</span></label>
                 <input 
                   value={form.city} 
                   onChange={e => set("city", e.target.value)} 
@@ -214,7 +214,7 @@ export default function JobApplicationForm() {
                 {errors.city && <small style={{ color: 'red' }}>{errors.city[0]}</small>}
               </div>
               <div className="field">
-                <label>Province</label>
+                <label>Province <span>*</span></label>
                 <input 
                   value={form.province} 
                   onChange={e => set("province", e.target.value)} 
@@ -224,7 +224,7 @@ export default function JobApplicationForm() {
                 {errors.province && <small style={{ color: 'red' }}>{errors.province[0]}</small>}
               </div>
               <div className="field">
-                <label>Postal Code</label>
+                <label>Postal Code <span>*</span></label>
                 <input 
                   value={form.postal_code} 
                   onChange={e => set("postal_code", e.target.value)} 
@@ -237,7 +237,7 @@ export default function JobApplicationForm() {
 
             <div className="row single">
               <div className="field">
-                <label>Country</label>
+                <label>Country <span>*</span></label>
                 <input 
                   value={form.country} 
                   onChange={e => set("country", e.target.value)} 
@@ -263,6 +263,7 @@ export default function JobApplicationForm() {
                   </label>
                 ))}
               </div>
+                {errors.engagement_type && <small style={{ color: 'red' }}>{errors.engagement_type[0]}</small>}
             </div>
             <div className="row">
               <div className="field">
@@ -281,9 +282,9 @@ export default function JobApplicationForm() {
                 <label>Desired Salary</label>
                 <input
                   type="input"
-                  placeholder="20000"
+                  placeholder="10000"
                   value={form.desired_pay}
-                  style={{ borderColor: errors.postal_code ? 'red' : '#ccc' }}
+                  style={{ borderColor: errors.desired_pay ? 'red' : '#ccc' }}
                   onChange={e => set("desired_pay", e.target.value)}
                 />
               </div>
@@ -298,10 +299,9 @@ export default function JobApplicationForm() {
 
             <div className="row">
               <div className="field">
-                <label>Highest Education</label>
+                <label>Highest Education <span>*</span></label>
                 <select 
-                  value={form.highest_education} 
-                  required
+                  value={form.highest_education}
                   onChange={e => set("highest_education", e.target.value)}
                   style={{ borderColor: errors.highest_education ? 'red' : '#ccc' }}
                 >
@@ -380,7 +380,7 @@ export default function JobApplicationForm() {
               <div className="field">
                 <label>Resume <span>*</span></label>
                 <div className={`upload-zone ${form.resume_path ? "has-file" : ""}`}>
-                  <input type="file" required accept=".pdf,.doc,.docx,.jpg,.png" onChange={e => handleFile("resume_path", e.target.files[0])} />
+                  <input type="file" accept=".pdf,.doc,.docx,.jpg,.png" onChange={e => handleFile("resume_path", e.target.files[0])} />
                   <svg className="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
                     <path d="M12 16V8m0 0l-3 3m3-3l3 3M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/>
                   </svg>
@@ -389,10 +389,16 @@ export default function JobApplicationForm() {
                     {!form.resume_path && "PDF, DOC, JPG · Max 4MB"}
                   </p>
                 </div>
+                {errors.resume_path && <small style={{ color: 'red' }}>{errors.resume_path[0]}</small>}
               </div>
             </div>
           </div>
-
+          {status && (
+            <div className={`alert alert-${status.type}`}>
+              <span>{status.type === "success" ? "✓" : "✕"}</span>
+              {status.message}
+            </div>
+          )}
           <button className="submit-btn" type="submit" disabled={loading}>
             {loading ? "Submitting…" : "Submit Application"}
           </button>
