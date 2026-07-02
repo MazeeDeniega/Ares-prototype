@@ -522,8 +522,9 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
 
-    exp_years_raw = re.findall(r'(\d+)\s+years?', resume)
-    years_exp     = max(map(int, exp_years_raw)) if exp_years_raw else 0
+    _resume_for_exp = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume)
+    exp_years_raw   = re.findall(r'(\d+)\+?\s*years?', _resume_for_exp)
+    years_exp       = max(map(int, exp_years_raw)) if exp_years_raw else 0
     if 'project' in resume and years_exp == 0:
         years_exp = 1
 
