@@ -141,6 +141,48 @@
   font-size: var(--text-base);
 }
 
+
+/* Headings */
+.job-desc-quill-content h1 { font-size: 2em;   font-weight: bold; margin: 0.67em 0; }
+.job-desc-quill-content h2 { font-size: 1.5em;  font-weight: bold; margin: 0.75em 0; }
+.job-desc-quill-content h3 { font-size: 1.17em; font-weight: bold; margin: 0.83em 0; }
+.job-desc-quill-content h4 { font-size: 1em;    font-weight: bold; margin: 1.12em 0; }
+
+/* Lists */
+.job-desc-quill-content ul { list-style-type: disc;    padding-left: 1.5em; margin: 0.5em 0; }
+.job-desc-quill-content ol { list-style-type: decimal; padding-left: 1.5em; margin: 0.5em 0; }
+.job-desc-quill-content li { margin-bottom: 0.25em; }
+
+/* Text alignment (Quill uses .ql-align-* classes) */
+.job-desc-quill-content .ql-align-center { text-align: center; }
+.job-desc-quill-content .ql-align-right  { text-align: right; }
+.job-desc-quill-content .ql-align-justify { text-align: justify; }
+
+/* Indentation (Quill uses .ql-indent-1 through .ql-indent-8) */
+.job-desc-quill-content .ql-indent-1 { padding-left: 3em; }
+.job-desc-quill-content .ql-indent-2 { padding-left: 6em; }
+.job-desc-quill-content .ql-indent-3 { padding-left: 9em; }
+.job-desc-quill-content .ql-indent-4 { padding-left: 12em; }
+.job-desc-quill-content .ql-indent-5 { padding-left: 15em; }
+.job-desc-quill-content .ql-indent-6 { padding-left: 18em; }
+.job-desc-quill-content .ql-indent-7 { padding-left: 21em; }
+.job-desc-quill-content .ql-indent-8 { padding-left: 24em; }
+
+/* Blockquote & code blocks */
+.job-desc-quill-content blockquote {
+  border-left: 4px solid #ccc;
+  padding-left: 1em;
+  margin: 0.5em 0;
+  color: #555;
+}
+.job-desc-quill-content pre {
+  background: #f4f4f4;
+  padding: 0.75em 1em;
+  border-radius: 4px;
+  overflow-x: auto;
+  font-family: monospace;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .job-desc-page {

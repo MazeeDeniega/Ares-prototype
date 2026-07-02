@@ -476,6 +476,195 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
 
 
 # ---------------------------------------------------------------------------
+# EXPERIENCE EXTRACTION
+# ---------------------------------------------------------------------------
+_MONTH_NAMES = {
+    'jan': 1, 'january': 1, 'feb': 2, 'february': 2, 'mar': 3, 'march': 3,
+    'apr': 4, 'april': 4, 'may': 5, 'jun': 6, 'june': 6, 'jul': 7, 'july': 7,
+    'aug': 8, 'august': 8, 'sep': 9, 'sept': 9, 'september': 9, 'oct': 10,
+    'october': 10, 'nov': 11, 'november': 11, 'dec': 12, 'december': 12,
+}
+
+_WORD_NUMBERS = {
+    'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5, 'six': 6,
+    'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10, 'eleven': 11, 'twelve': 12,
+    'thirteen': 13, 'fourteen': 14, 'fifteen': 15, 'sixteen': 16,
+    'seventeen': 17, 'eighteen': 18, 'nineteen': 19, 'twenty': 20,
+}
+_NUM_ALT = r'\d{1,2}(?:\.\d)?|' + '|'.join(_WORD_NUMBERS.keys())
+
+# Numbers whose surrounding sentence signals they're NOT tenure — budget
+# size, team headcount, working hours/week, someone's age.
+_NON_TENURE_CONTEXT = re.compile(
+    r'\$|\bmillion\b|\bbillion\b|\bbudget\b|\bteam of\b|\bpeople\b|\bstaff\b|'
+    r'\bemployees\b|\bmembers\b|\bhours?\b|\bdays? a week\b|\bweeks?\b|'
+    r'\bage(?:d)?\b|\byears? old\b',
+    re.IGNORECASE,
+)
+
+# A "summary" style claim, e.g. "8 years of experience in software
+# development". Requires the word experience/exp nearby so a stray
+# "3 years" elsewhere in the document isn't mistaken for the candidate's
+# headline claim.
+_SUMMARY_YEARS_RE = re.compile(
+    r'(?P<num>' + _NUM_ALT + r')\+?\s*(?:years?|yrs?)\s*'
+    r'(?:of\s+)?(?:\w+\s+){0,3}?(?:experience|exp\.?\b)',
+    re.IGNORECASE,
+)
+
+# A per-role duration, e.g. "Backend Developer, Acme Corp (3 years)" or
+# "Acme Corp — 4 yrs". No "experience" keyword required, since resume
+# bullets rarely repeat that word per job — but it must be attached to a
+# dash/parenthesis pattern rather than floating in prose.
+_PER_ROLE_YEARS_RE = re.compile(
+    r'(?:[-–—(]\s*)(?P<num>' + _NUM_ALT + r')\+?\s*(?:years?|yrs?)\s*\)?',
+    re.IGNORECASE,
+)
+
+_SENTENCE_SPLIT_RE = re.compile(r'(?<=[.!?])\s+|\n+')
+
+_DATE_RANGE_RE = re.compile(
+    r'(?P<start_month>[A-Za-z]{3,9})?\.?\s*(?P<start_year>(?:19|20)\d{2})\s*'
+    r'(?:-|–|—|to)\s*'
+    r'(?:(?P<end_month>[A-Za-z]{3,9})?\.?\s*(?P<end_year>(?:19|20)\d{2})|'
+    r'(?P<present>present|current|now|ongoing))',
+    re.IGNORECASE,
+)
+
+
+def _word_to_num(token: str):
+    token = token.lower()
+    if token in _WORD_NUMBERS:
+        return _WORD_NUMBERS[token]
+    try:
+        return float(token)
+    except ValueError:
+        return None
+
+
+def _extract_date_range_years(text: str):
+    """
+    Primary signal. Finds explicit date ranges (e.g. "Jan 2018 - Dec 2023",
+    "2019 - Present") and merges overlapping/concurrent intervals before
+    summing, so two jobs held at the same time don't inflate the total and
+    unlisted gaps between jobs aren't counted.
+    """
+    today = datetime.date.today()
+    intervals = []
+
+    for m in _DATE_RANGE_RE.finditer(text):
+        try:
+            start_year = int(m.group('start_year'))
+            start_month = _MONTH_NAMES.get((m.group('start_month') or '').lower()[:3], 1)
+
+            if m.group('present'):
+                end_year, end_month = today.year, today.month
+            else:
+                end_year = int(m.group('end_year'))
+                end_month = _MONTH_NAMES.get((m.group('end_month') or '').lower()[:3], 12)
+
+            start = datetime.date(start_year, start_month, 1)
+            end = datetime.date(end_year, end_month, 1)
+
+            # Reject reversed or out-of-range spans (e.g. a phone number or
+            # zip code that happened to look like two 4-digit years).
+            if end < start or start.year < 1950 or end.year > today.year + 1:
+                continue
+
+            intervals.append((start, end))
+        except (ValueError, TypeError):
+            continue
+
+    if not intervals:
+        return 0.0, []
+
+    intervals.sort(key=lambda iv: iv[0])
+    merged = [intervals[0]]
+    for start, end in intervals[1:]:
+        last_start, last_end = merged[-1]
+        if start <= last_end:                       # overlap/concurrent -> merge
+            merged[-1] = (last_start, max(last_end, end))
+        else:
+            merged.append((start, end))
+
+    total_days = sum((end - start).days for start, end in merged)
+    total_years = round(total_days / 365.25, 1)
+    return total_years, merged
+
+
+def _extract_explicit_years(text: str):
+    """
+    Fallback, only used when no date ranges were found at all. Every
+    context check is scoped to the sentence the number appears in (not a
+    raw character window, which can bleed context from a neighboring
+    sentence). Summary claims ("8 years of experience") are taken once;
+    distinct per-role mentions ("3 years" at job A, "4 years" at job B)
+    are summed.
+    """
+    summary_values = []
+    per_role_values = []
+
+    for sentence in _SENTENCE_SPLIT_RE.split(text):
+        if _NON_TENURE_CONTEXT.search(sentence):
+            continue
+
+        for m in _SUMMARY_YEARS_RE.finditer(sentence):
+            num = _word_to_num(m.group('num'))
+            if num and 0 < num <= 60:
+                summary_values.append(num)
+
+        for m in _PER_ROLE_YEARS_RE.finditer(sentence):
+            num = _word_to_num(m.group('num'))
+            if num and 0 < num <= 60:
+                per_role_values.append(num)
+
+    if summary_values:
+        return max(set(summary_values))
+
+    if per_role_values:
+        total = sum(set(per_role_values))
+        return min(total, 50.0)
+
+    return 0.0
+
+
+def extract_years_experience(resume_text: str) -> dict:
+    """
+    Returns:
+        {
+          'years_experience': float,
+          'method': 'date_ranges' | 'explicit_statement' | 'none',
+          'intervals': [(date, date), ...]   # only for 'date_ranges'
+        }
+
+    No "'project' in resume -> 1 year" guessing: "project" appears on
+    nearly every resume and says nothing about tenure. Undetectable cases
+    return 0 with method='none' rather than a fabricated number.
+    """
+    date_range_years, intervals = _extract_date_range_years(resume_text)
+    if intervals:
+        return {
+            'years_experience': date_range_years,
+            'method': 'date_ranges',
+            'intervals': intervals,
+        }
+
+    explicit_years = _extract_explicit_years(resume_text)
+    if explicit_years > 0:
+        return {
+            'years_experience': explicit_years,
+            'method': 'explicit_statement',
+            'intervals': [],
+        }
+
+    return {
+        'years_experience': 0.0,
+        'method': 'none',
+        'intervals': [],
+    }
+
+
+# ---------------------------------------------------------------------------
 # SHARED CORE SCORING  (used by both /analyze and debug_routes)
 # ---------------------------------------------------------------------------
 def score_resume(resume_raw: str, job_raw: str, page_count,
@@ -565,7 +754,7 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'job_skills_extracted':  job_skills_extracted,
         # Experience
         'years_experience':      years_exp,
-        'exp_years_detected':    list(map(int, exp_years_raw)),
+        'exp_years_detected':    exp_years_detected,
         # Education / Cert
         'education_score':       education_score,
         'certification_score':   cert_score,

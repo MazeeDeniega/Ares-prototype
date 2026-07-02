@@ -23,13 +23,14 @@ export default function AuthForm({
           alt=""
           className="auth-branding__bg"
           aria-hidden="true"
+          draggable={false}
         />
         <div className="auth-branding__content">
           <div className="auth-branding__logo">
             
             {/* <BsClipboard2 />
             <span className="auth-branding__logo-text">ARES</span> */}
-            <img src={aresLogo} alt='Logo' />
+            <img src={aresLogo} alt='Logo' draggable={false} />
           </div>
           <p className="auth-branding__tagline">
             Smarter Hiring Decisions, Powered by Your Preferences.
@@ -88,13 +89,13 @@ export default function AuthForm({
           {secondaryBtns.length > 0 && (
             <div className="auth-btn-row">
               {secondaryBtns.map((action) => (
-                <Link
+                <a
                   key={action.label} 
-                  to={action.to}
+                  href={action.to}
                   className="auth-btn-outline"
                 >
                   {action.label}
-                </Link>
+                </a>
               ))}
             </div>
           )}

@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { BsFillLockFill, BsEnvelopeFill, BsFillPersonFill } from "react-icons/bs";
 import AuthForm from '../components/AuthForm';
-import './styles/login.css';
 
 export default function Register() {
   document.title = "Register";

@@ -54,7 +54,7 @@
 }
 
 .modal-title-input::placeholder {
-  color: var(--color-primary-dark);
+  color: var(--color-text-light);
   opacity: 0.6;
 }
 
@@ -63,7 +63,8 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow-x: visible;
+  overflow-y: hidden;
 }
 
 /* Override Quill chrome to match design */
@@ -76,14 +77,14 @@
 }
 
 .modal-editor-wrap .ql-toolbar .ql-stroke {
-  stroke: var(--color-primary-dark);
+  stroke: var(--color-text-medium);
 }
 .modal-editor-wrap .ql-toolbar .ql-fill {
-  fill: var(--color-primary-dark);
+  fill: var(--color-text-medium);
 }
 .modal-editor-wrap .ql-toolbar .ql-picker-label,
 .modal-editor-wrap .ql-toolbar .ql-picker-item {
-  color: var(--color-primary-dark);
+  color: var(--color-text-medium);
 }
 .modal-editor-wrap .ql-toolbar button:hover .ql-stroke,
 .modal-editor-wrap .ql-toolbar .ql-active .ql-stroke {
@@ -103,7 +104,7 @@
   font-family: var(--font-body);
   font-size: var(--text-sm);
   flex: 1;
-  /* overflow-y: auto; */
+  overflow-y: auto;
 }
 
 .modal-editor-wrap .ql-editor {

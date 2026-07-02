@@ -46,6 +46,13 @@
   overflow: hidden;
   flex: 1;
 }
+
+.job-openings-empty {
+  text-align: center;
+  padding: var(--space-3xl) var(--space-xl);
+  color: var(--color-text-muted, var(--color-text-light));
+  font-size: var(--text-base);
+}
  
 /* Responsive */
 @media (max-width: 768px) {

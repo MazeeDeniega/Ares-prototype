@@ -95,18 +95,50 @@ class ScreeningController extends Controller
                 $query->where('user_id', $user->id);
             })
             ->get()
-            ->map(function ($app) {
-                return [
-                    'id'           => $app->id,
-                    'Name'         => $app->first_name . ' ' . $app->last_name,
-                    'Contact'      => $app->email,
-                    'job_position' => $app->job->title ?? 'N/A',
-                    'status'       => $app->status ?? 'Pending',
-                    'details'      => $app->resume_path,
-                ];
-            });
+            ->map(fn ($app) => $this->formatCandidate($app));
 
         return response()->json($applications);
+    }
+
+    public function updateCandidateStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:' . implode(',', Application::VALID_STATUSES),
+        ]);
+
+        $user = Auth::user();
+        $application = Application::with('job')->findOrFail($id);
+
+        if ($application->job->user_id != $user->id && !$user->isAdmin()) {
+            abort(403, 'Unauthorized');
+        }
+
+        $application->status = $request->status;
+        $application->save();
+
+        return response()->json($this->formatCandidate($application));
+    }
+
+    private function formatCandidate(Application $app): array
+    {
+        return [
+            'id'           => $app->id,
+            'Name'         => $app->first_name . ' ' . $app->last_name,
+            'Contact'      => $app->email,
+            'job_position' => $app->job->title ?? 'N/A',
+            'status'       => $this->formatStatusLabel($app->status),
+            'details'      => $app->resume_path ? "/files/{$app->id}/resume" : null,
+        ];
+    }
+
+    private function formatStatusLabel(?string $status): string
+    {
+        return match (strtolower($status ?? Application::STATUS_PENDING)) {
+            Application::STATUS_APPROVED, 'accepted' => 'Approved',
+            Application::STATUS_REJECTED => 'Rejected',
+            Application::STATUS_INTERVIEW => 'Interview',
+            default => 'Pending',
+        };
     }
 
     /**
@@ -838,6 +870,7 @@ class ScreeningController extends Controller
     {
         return [
             'application_id'       => $application->id,
+            'status'               => $application->status ?? Application::STATUS_PENDING,
             'first_name'           => $application->first_name,
             'last_name'            => $application->last_name,
             'email'                => $application->email,

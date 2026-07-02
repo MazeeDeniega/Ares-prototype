@@ -8,6 +8,22 @@
   box-sizing: border-box;
 }
 
+.candidate-status-select {
+  appearance: none;
+  min-width: 110px;
+  text-align: center;
+  outline: none;
+}
+
+.candidate-status-select:disabled {
+  opacity: 0.7;
+}
+
+.candidate-status-select option {
+  color: #000;
+  background: #fff;
+}
+
 .themed-table-wrapper {
   /* max-height: 600px; */
   /* overflow-y: scroll; */
@@ -86,6 +102,10 @@ tr td {
   text-overflow: ellipsis;
 }
 
+.candidates-row {
+  text-align: center;
+}
+
 /* ----------------------------------------------------------------
    JobListTable / RankingTable container + plain tables
    (used when not wrapped in .themed-table-wrapper)
@@ -105,9 +125,8 @@ tr td {
 
 .JobListTable th,
 .JobListTable td {
-  border: 1px solid #ddd;
   padding: 10px;
-  text-align: left;
+  text-align: center;
 }
 
 .JobListTable thead th {
@@ -116,14 +135,32 @@ tr td {
   color: var(--text-dark);
 }
 
+.JobListTable .evaluate-btn {
+  background: var(--color-primary);
+  border: none;
+  padding: var(--space-sm) var(--space-md);
+  font-weight: 600;
+  border-radius: var(--radius-sm);
+}
+
+.JobListTable .job-title,
+.RankingTable .job-title {
+  font-size: var(--text-3xl);
+  font-weight: 700;
+  margin-bottom: var(--space-sm);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ----------------------------------------------------------------
    Ranking page — preference summary bar
    ---------------------------------------------------------------- */
 .pref-bar {
   font-size: 0.83em;
   color: #555;
-  background: var(--color-bg-white);
-  border: 1px solid #e5e7eb;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
   padding: 8px 12px;
   border-radius: 6px;
   margin-bottom: 18px;
@@ -131,13 +168,20 @@ tr td {
 
 .edit-pref-btn-ranking {
   background: #fff;
-  color: #3a6fd1;
+  color: var(--color-primary-dark);
   border: 1px solid #b3c7ee;
   border-radius: 8px;
   padding: 8px 20px;
   font-size: 0.95rem;
   font-weight: 500;
   cursor: pointer;
+}
+
+.edit-pref-btn-ranking:hover {
+  background: var(--color-primary-hover);
+  border-color: #93c5fd;
+  color: var(--color-text-white);
+  transition: background var(--transition-normal), color var(--transition-normal);
 }
 
 /* ----------------------------------------------------------------
@@ -147,13 +191,13 @@ tr td {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #2563eb;
+  background: var(--color-primary-dark);
   color: white;
   border-radius: 50%;
   width: 30px;
   height: 30px;
   font-weight: bold;
-  font-size: 0.95em;
+  font-size: var(--text-base);
 }
 
 /* ----------------------------------------------------------------
@@ -283,4 +327,120 @@ tr td {
   margin: 3px 0;
   font-size: 0.85em;
   color: #2563eb;
+}
+
+/* =================== Loading section =================== */
+/* ─────────────────────────────────────────────
+   Skeleton loading — DashboardRecruiter
+   Add these rules to your existing stylesheet.
+───────────────────────────────────────────── */
+
+/* Shared shimmer animation */
+@keyframes skeleton-shimmer {
+  0%   { background-position: -600px 0; }
+  100% { background-position:  600px 0; }
+}
+
+/* Base skeleton cell */
+.skeleton-cell {
+  display: inline-block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    #e8e8e8 25%,
+    #f4f4f4 50%,
+    #e8e8e8 75%
+  );
+  background-size: 600px 100%;
+  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+}
+
+/* Prevent the skeleton row from being clickable / showing hover style */
+.table-row-skeleton {
+  cursor: default;
+  pointer-events: none;
+}
+
+.table-row-skeleton:hover {
+  background: inherit;
+}
+
+/* Size variants */
+.skeleton-title {
+  width: 140px;
+  height: 14px;
+}
+
+.skeleton-desc {
+  width: 260px;
+  height: 14px;
+}
+
+.skeleton-count {
+  width: 28px;
+  height: 14px;
+}
+
+.skeleton-btn {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  margin: 0 2px;
+}
+
+/* Stagger opacity so rows don't all pulse in sync */
+.table-row-skeleton:nth-child(1) .skeleton-cell { animation-delay: 0s;    }
+.table-row-skeleton:nth-child(2) .skeleton-cell { animation-delay: 0.15s; }
+.table-row-skeleton:nth-child(3) .skeleton-cell { animation-delay: 0.30s; }
+.table-row-skeleton:nth-child(4) .skeleton-cell { animation-delay: 0.45s; }
+
+/* Dark-mode support (optional — remove if you don't use dark mode) */
+@media (prefers-color-scheme: dark) {
+  .skeleton-cell {
+    background: linear-gradient(
+      90deg,
+      #2a2a2a 25%,
+      #363636 50%,
+      #2a2a2a 75%
+    );
+    background-size: 600px 100%;
+  }
+}
+
+/* ----------------------------------------------------------------
+   Ranking page — pagination controls
+   ---------------------------------------------------------------- */
+.ranking-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-md);
+  padding: var(--space-md) 0;
+}
+
+.ranking-pagination__btn {
+  background: var(--color-bg-white);
+  color: var(--color-primary-dark);
+  border: 1px solid #b3c7ee;
+  border-radius: var(--radius-sm);
+  padding: 6px 16px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.ranking-pagination__btn:hover:not(:disabled) {
+  background: var(--color-primary-hover);
+  color: var(--color-text-white);
+  border-color: var(--color-primary-hover);
+}
+
+.ranking-pagination__btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.ranking-pagination__status {
+  font-size: 0.85rem;
+  color: #555;
 }
