@@ -593,14 +593,6 @@ def _extract_date_range_years(text: str):
 
 
 def _extract_explicit_years(text: str):
-    """
-    Fallback, only used when no date ranges were found at all. Every
-    context check is scoped to the sentence the number appears in (not a
-    raw character window, which can bleed context from a neighboring
-    sentence). Summary claims ("8 years of experience") are taken once;
-    distinct per-role mentions ("3 years" at job A, "4 years" at job B)
-    are summed.
-    """
     summary_values = []
     per_role_values = []
 
@@ -618,15 +610,83 @@ def _extract_explicit_years(text: str):
             if num and 0 < num <= 60:
                 per_role_values.append(num)
 
+    # A "summary" claim ("8 years of experience") is a single headline
+    # statement, not one-per-role — take the largest such claim, not a sum.
     if summary_values:
-        return max(set(summary_values))
+        return max(summary_values)
 
+    # Per-role durations are additive by construction (one match per
+    # distinct "(N years)" occurrence) — sum them, don't dedupe by value.
     if per_role_values:
-        total = sum(set(per_role_values))
-        return min(total, 50.0)
+        return min(sum(per_role_values), 50.0)
 
     return 0.0
 
+# Headings that mark the START of a block we should read dates/durations
+# from. Deliberately narrower than the general _HEADING_RE used elsewhere
+# (that one also matches EDUCATION, SKILLS, CERTIFICATIONS, etc., which is
+# exactly what we need to exclude here).
+_EXPERIENCE_SECTION_START_RE = re.compile(
+    r'^(EXPERIENCE|WORK\s+EXPERIENCE|WORK\s+HISTORY|EMPLOYMENT(?:\s+HISTORY)?|'
+    r'PROFESSIONAL\s+EXPERIENCE|RELEVANT\s+EXPERIENCE|CAREER\s+HISTORY|'
+    r'INTERNSHIPS?)\s*:?\s*$',
+    re.IGNORECASE,
+)
+
+def _is_heading_line(line: str) -> bool:
+    """Reuses the same heading heuristic as classify_layout/_HEADING_RE
+    (defined further down in this module) so section boundaries here match
+    what the presentation scorer already treats as a section break."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return bool(
+        _HEADING_RE.match(stripped) or
+        (stripped.isupper() and 2 <= len(stripped.split()) <= 5
+         and not re.search(r'[\d@]', stripped))
+    )
+
+def _extract_experience_section(text_raw: str) -> tuple[str, bool]:
+    """
+    Isolates Experience/Employment/Internship blocks so date-range and
+    duration parsing only reads years from actual work history — not
+    Education graduation years, Certification dates, References, or a
+    zip code/phone number that happens to sit near the word "years".
+
+    Handles multiple experience-labelled sections (e.g. "Professional
+    Experience" + a separate "Internships" section later in the doc) by
+    collecting all of them, each terminated by the next *non*-experience
+    heading (Education, Skills, Certifications, ...) or end of document.
+
+    Falls back to the full text when no experience heading is found at
+    all — a plain-text resume with no section headers should still get
+    scored, rather than silently returning 0.
+    """
+    lines = text_raw.splitlines()
+    collected = []
+    in_section = False
+    found_any = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped and _EXPERIENCE_SECTION_START_RE.match(stripped):
+            in_section = True
+            found_any = True
+            continue  # don't include the heading line itself
+
+        if stripped and in_section and _is_heading_line(stripped) \
+                and not _EXPERIENCE_SECTION_START_RE.match(stripped):
+            in_section = False
+            continue
+
+        if in_section:
+            collected.append(line)
+
+    if not found_any:
+        return text_raw, False
+
+    return '\n'.join(collected), True
 
 def extract_years_experience(resume_text: str) -> dict:
     """
@@ -634,33 +694,37 @@ def extract_years_experience(resume_text: str) -> dict:
         {
           'years_experience': float,
           'method': 'date_ranges' | 'explicit_statement' | 'none',
-          'intervals': [(date, date), ...]   # only for 'date_ranges'
+          'intervals': [(date, date), ...],   # only for 'date_ranges'
+          'scoped_to_experience_section': bool,  # False = no Experience
+                                                  # heading found; fell
+                                                  # back to whole document
         }
-
-    No "'project' in resume -> 1 year" guessing: "project" appears on
-    nearly every resume and says nothing about tenure. Undetectable cases
-    return 0 with method='none' rather than a fabricated number.
     """
-    date_range_years, intervals = _extract_date_range_years(resume_text)
+    section_text, section_found = _extract_experience_section(resume_text)
+
+    date_range_years, intervals = _extract_date_range_years(section_text)
     if intervals:
         return {
             'years_experience': date_range_years,
             'method': 'date_ranges',
             'intervals': intervals,
+            'scoped_to_experience_section': section_found,
         }
 
-    explicit_years = _extract_explicit_years(resume_text)
+    explicit_years = _extract_explicit_years(section_text)
     if explicit_years > 0:
         return {
             'years_experience': explicit_years,
             'method': 'explicit_statement',
             'intervals': [],
+            'scoped_to_experience_section': section_found,
         }
 
     return {
         'years_experience': 0.0,
         'method': 'none',
         'intervals': [],
+        'scoped_to_experience_section': section_found,
     }
 
 
@@ -711,11 +775,16 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
 
-    _resume_for_exp = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume)
-    exp_years_raw   = re.findall(r'(\d+)\+?\s*years?', _resume_for_exp)
-    years_exp       = max(map(int, exp_years_raw)) if exp_years_raw else 0
-    if 'project' in resume and years_exp == 0:
-        years_exp = 1
+    # Run on resume_raw, not the lower-cased `resume`, so month names like
+    # "Jan"/"Dec" in date ranges are unaffected by normalization, and so the
+    # sentence splitter sees real punctuation.
+    exp_result = extract_years_experience(resume_raw)
+    years_exp              = exp_result['years_experience']
+    exp_extraction_method  = exp_result['method']          # 'date_ranges' | 'explicit_statement' | 'none'
+    exp_intervals          = [
+        {'start': s.isoformat(), 'end': e.isoformat()}
+    for s, e in exp_result.get('intervals', [])
+]
 
     education_score, education_level = 0, 'none detected'
     if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
@@ -754,7 +823,8 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'job_skills_extracted':  job_skills_extracted,
         # Experience
         'years_experience':      years_exp,
-        'exp_years_detected':    list(map(int, exp_years_raw)) if exp_years_raw else [],
+        'experience_method':     exp_extraction_method,   # replaces exp_years_detected
+        'experience_intervals':  exp_intervals,
         # Education / Cert
         'education_score':       education_score,
         'certification_score':   cert_score,
