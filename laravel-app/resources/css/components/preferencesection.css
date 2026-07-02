@@ -37,6 +37,13 @@
   gap: var(--space-md);
 }
 
+.pref-slider__hint {
+  font-size: var(--text-xs);
+  color: var(--color-text-light);
+  line-height: 1.4;
+  margin-top: -2px;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .pref-section {

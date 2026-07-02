@@ -3,8 +3,8 @@ import DashboardLayout    from '../layouts/DashboardLayout';
 import PreferenceSection, { PreferenceSubGroup } from '../components/PreferenceSection';
 import '../../css/pages/preferences.css';
 
-/* Slider + number input row */
-const WeightRow = ({ label, value, onChange, disabled = false }) => {
+/* Slider + number input row, with an optional plain-language hint underneath */
+const WeightRow = ({ label, hint, value, onChange, disabled = false }) => {
   const trackStyle = {
     background: disabled
       ? `linear-gradient(to right,
@@ -20,6 +20,7 @@ const WeightRow = ({ label, value, onChange, disabled = false }) => {
   return (
     <div className="pref-slider">
       <span className="pref-slider__label">{label}</span>
+      {hint && <span className="pref-slider__hint">{hint}</span>}
       <div className="pref-slider__row">
         <input
           className="pref-slider__input"
@@ -258,10 +259,11 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
           <PreferenceSection
             title="Final Score Weights"
-            subtitle="How much each component contributes to the final ranking score."
+            subtitle="How much each part of a candidate's profile counts toward their overall ranking."
           >
             <WeightRow
               label="Qualifications"
+              hint="Skills, experience, education, and certifications combined."
               value={qualWeight}
               onChange={(val) => setFinalGroup(0, val)}
             />
@@ -274,24 +276,27 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
             >
               <WeightRow
                 label="Skills Match"
+                hint="How well the candidate's resume matches what the job needs."
                 value={skillsWeight}
                 onChange={(val) => setSubGroup(0, val)}
               />
 
               <PreferenceSubGroup
                 parentValue={skillsWeight}
-                title="Qualifications"
-                subtitle="Skills Matching — TF-IDF + Semantic."
+                title="How Skills Are Matched"
+                subtitle="Two ways we check if a resume fits the job; you can weigh each one differently."
                 expanded={skillsSubExpanded}
                 onExpandedChange={setSkillsSubExpanded}
               >
                 <WeightRow
-                  label="TF-IDF (Keyword)"
+                  label="Exact Word Matching"
+                  hint="Rewards resumes that use the same specific words and skills listed in the job posting (e.g. the job says 'Excel' and the resume also says 'Excel')."
                   value={keywordWeight}
                   onChange={(val) => setBlendGroup(0, val)}
                 />
                 <WeightRow
-                  label="Semantic (AI)"
+                  label="Overall Fit Matching"
+                  hint="Rewards resumes that fit the role in meaning, even if they don't use the exact same wording as the job posting."
                   value={semanticWeight}
                   onChange={(val) => setBlendGroup(1, val)}
                 />
@@ -299,16 +304,19 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
               <WeightRow
                 label="Experience"
+                hint="Number of years of relevant work experience."
                 value={experienceWeight}
                 onChange={(val) => setSubGroup(1, val)}
               />
               <WeightRow
                 label="Education"
+                hint="Highest level of education completed (e.g. Bachelor's, Master's)."
                 value={educationWeight}
                 onChange={(val) => setSubGroup(2, val)}
               />
               <WeightRow
                 label="Certification"
+                hint="Professional certifications or training completed."
                 value={certWeight}
                 onChange={(val) => setSubGroup(3, val)}
               />
@@ -316,23 +324,24 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
             <WeightRow
               label="Presentation"
+              hint="How clean, professional, and easy to read the resume itself is."
               value={layoutWeight}
               onChange={(val) => setFinalGroup(1, val)}
             />
 
             <PreferenceSubGroup
               parentValue={layoutWeight}
-              title="Selections"
+              title="What Counts as Good Presentation"
               expanded={presSubExpanded}
               onExpandedChange={setPresSubExpanded}
             >
               <p className="pref-pres-note">{getPresNote()}</p>
               <div className="pref-selector">
                 {[
-                  { label: 'Organization & Structure', desc: 'Sections, margins, reverse-chronological order', value: prefOrganization, setter: setPrefOrganization },
-                  { label: 'Conciseness',              desc: 'Word count, page length, minimal repetition',    value: prefConciseness,  setter: setPrefConciseness },
-                  { label: 'Language Quality',         desc: 'Action verbs, formal tone, no typos',            value: prefLanguage,     setter: setPrefLanguage },
-                  { label: 'Formatting & Visuals',     desc: 'Section spacing, B&W layout',                   value: prefFormatting,   setter: setPrefFormatting },
+                  { label: 'Structure & Organization', desc: 'Has clear sections (Experience, Education, etc.) listed in a logical, easy-to-follow order.', value: prefOrganization, setter: setPrefOrganization },
+                  { label: 'Length & Focus',            desc: 'Resume is an appropriate length: not too short to judge, not padded with repetition.',   value: prefConciseness,  setter: setPrefConciseness },
+                  { label: 'Writing Quality',           desc: 'Professional tone, strong action words (e.g. "led", "built"), and no typos or slang.',   value: prefLanguage,     setter: setPrefLanguage },
+                  { label: 'Formatting & Layout',       desc: 'Consistent spacing, bullet points, and contact info that\'s easy to find.',              value: prefFormatting,   setter: setPrefFormatting },
                 ].map(({ label, desc, value, setter }) => (
                   <label
                     key={label}
