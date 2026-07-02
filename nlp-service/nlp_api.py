@@ -754,7 +754,7 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'job_skills_extracted':  job_skills_extracted,
         # Experience
         'years_experience':      years_exp,
-        'exp_years_detected':    exp_years_detected,
+        'exp_years_detected':    list(map(int, exp_years_raw)) if exp_years_raw else [],
         # Education / Cert
         'education_score':       education_score,
         'certification_score':   cert_score,
