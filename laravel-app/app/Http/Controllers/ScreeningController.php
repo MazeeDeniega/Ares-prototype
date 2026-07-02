@@ -388,35 +388,50 @@ class ScreeningController extends Controller
             return ['text' => '', '_failure_reason' => "OCR.space error (ExitCode {$exitCode}): {$errMsg} [file: {$fileSizeMb}MB]"];
         }
 
-        $result = $data['ParsedResults'][0] ?? [];
+        // EXTRACT ALL PAGES (Fixes the Page 1 limitation)
+        $parsedResults = $data['ParsedResults'] ?? [];
+        $fullText = '';
+        $usedOverlay = false;
 
-        // Prefer structure-reconstructed text. Fall back to the old flat
-        // ParsedText if no overlay came back (e.g. the image type didn't
-        // support it, or overlay data was empty).
-        $overlayLines = $result['TextOverlay']['Lines'] ?? [];
-        $text = !empty($overlayLines)
-            ? trim($this->reconstructTextFromOverlay($overlayLines))
-            : '';
+        foreach ($parsedResults as $result) {
+            $overlayLines = $result['TextOverlay']['Lines'] ?? [];
+            
+            $pageText = !empty($overlayLines)
+                ? trim($this->reconstructTextFromOverlay($overlayLines))
+                : '';
 
-        if ($text === '') {
-            $text = trim($result['ParsedText'] ?? '');
+            if ($pageText === '') {
+                $pageText = trim($result['ParsedText'] ?? '');
+            }
+
+            if (!empty($overlayLines)) {
+                $usedOverlay = true;
+            }
+
+            if ($pageText !== '') {
+                $fullText .= $pageText . "\n\n";
+            }
         }
 
-        if (strlen($text) > 50) {
+        $fullText = trim($fullText);
+
+        // Original 50-character minimum check remains exactly the same
+        if (strlen($fullText) > 50) {
             return [
-                'text' => $text,
+                'text' => $fullText,
                 'method' => 'cloud_ocr',
-                'page_count' => 1,
-                'char_count' => strlen($text),
-                'used_overlay' => !empty($overlayLines),
+                'page_count' => count($parsedResults) > 0 ? count($parsedResults) : 1, // Safely updates page count
+                'char_count' => strlen($fullText),
+                'used_overlay' => $usedOverlay,
             ];
         }
 
+        // Original failure reason logic remains exactly the same
         return [
             'text' => '',
-            '_failure_reason' => empty($result)
+            '_failure_reason' => empty($parsedResults)
                 ? "ParsedResults came back empty [file: {$fileSizeMb}MB] — request likely rejected without an explicit error flag"
-                : 'parsed only ' . strlen($text) . " chars (need >50) [file: {$fileSizeMb}MB]",
+                : 'parsed only ' . strlen($fullText) . " chars (need >50) [file: {$fileSizeMb}MB]",
         ];
     }
 
