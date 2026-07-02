@@ -711,26 +711,11 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
 
-    # NOTE: uses resume_raw (original casing/punctuation intact), not the
-    # lower-cased/alias-substituted `resume` — month names and date
-    # separators need to survive normalize_text untouched.
-    exp_result = extract_years_experience(resume_raw)
-    years_exp  = exp_result['years_experience']
-
-    # JSON-safe replacement for the old `exp_years_detected` (which used to
-    # be a bare list of ints from the naive regex). datetime.date objects
-    # in exp_result['intervals'] aren't JSON-serializable on their own, so
-    # they're converted to ISO strings here before going anywhere near
-    # jsonify(). This also surfaces *how* the number was derived, which is
-    # useful for the debug panel.
-    exp_years_detected = {
-        'method': exp_result['method'],
-        'years':  years_exp,
-        'intervals': [
-            {'start': start.isoformat(), 'end': end.isoformat()}
-            for start, end in exp_result.get('intervals', [])
-        ],
-    }
+    _resume_for_exp = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume)
+    exp_years_raw   = re.findall(r'(\d+)\+?\s*years?', _resume_for_exp)
+    years_exp       = max(map(int, exp_years_raw)) if exp_years_raw else 0
+    if 'project' in resume and years_exp == 0:
+        years_exp = 1
 
     education_score, education_level = 0, 'none detected'
     if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):

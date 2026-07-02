@@ -7,6 +7,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\JobController;
 use App\Http\Controllers\PreferenceController;
 use App\Http\Controllers\ApplicantController;
+use App\Http\Controllers\TestingController;
 use Illuminate\Support\Facades\Auth;
 
     // Interactive Testing Sandbox UI
@@ -72,7 +73,6 @@ Route::middleware(['auth', 'role:recruiter'])->group(function () {
     Route::get('/jobs/{id}/preferences', [PreferenceController::class, 'editJobPreference']);
     Route::post('/jobs/{id}/preferences', [PreferenceController::class, 'updateJobPreference']);
 
-    
 });
 
 // Admin
@@ -83,7 +83,9 @@ Route::middleware(['auth', 'role:admin'])->group(function () {
     Route::post('/users/{id}/role', [DashboardController::class, 'updateUserRole']);
 });
 
-// Route::get('/{any}', function () {
-//     return view('welcome');
-// })->where('any', '.*');
-
+// ── Testing only — remove before production ──────────────────────────
+Route::middleware(['auth'])->prefix('testing')->name('testing.')->group(function () {
+    Route::get('/mass-upload',          [TestingController::class, 'showMassUpload'])->name('mass-upload.index');
+    Route::post('/mass-upload',         [TestingController::class, 'massUpload'])->name('mass-upload.store');
+    Route::delete('/mass-upload/clear/{jobId}', [TestingController::class, 'clearTestApplications'])->name('mass-upload.clear');
+});
