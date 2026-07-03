@@ -474,6 +474,125 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         "avg_words_per_line":   round(avg_words_per_line, 1),
     }
 
+def isolate_experience_section(resume_raw: str) -> str:
+    """Extracts only the text belonging to Experience/Employment sections."""
+    block_match = re.search(
+        r'\b(WORK\s+EXPERIENCE|EXPERIENCE|EMPLOYMENT|WORK\s+HISTORY)\b'
+        r'(.*?)(?=\b(EDUCATION|SKILLS|AWARDS|PROJECTS|CERTIFICATIONS|REFERENCES)\b|$)', 
+        resume_raw, 
+        re.IGNORECASE | re.DOTALL
+    )
+    
+    if block_match and len(block_match.group(2).strip()) > 20:
+        return block_match.group(2).strip()
+    
+    heading_pattern = re.compile(
+        r'^(EDUCATION|EXPERIENCE|WORK\s+EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
+        r'|TRAINING|WORK HISTORY|EMPLOYMENT|PROFESSIONAL|TECHNICAL|RELEVANT'
+        r'|INTERNSHIP|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)',
+        re.IGNORECASE
+    )
+
+    lines = resume_raw.splitlines()
+    exp_text = []
+    in_exp_section = False
+
+    for line in lines:
+        line_clean = line.strip()
+        
+        # Determine if this line is a section heading
+        is_heading = False
+        if line_clean and (heading_pattern.match(line_clean) or 
+                           (line_clean.isupper() and 2 <= len(line_clean.split()) <= 5 and not re.search(r'[\d@]', line_clean))):
+            is_heading = True
+
+        if is_heading:
+            # If it's a Work-related heading, turn the recorder ON
+            if re.search(r'EXPERIENCE|EMPLOYMENT|WORK HISTORY|PROFESSIONAL|INTERNSHIP', line_clean, re.IGNORECASE):
+                in_exp_section = True
+            # If it's ANY OTHER heading (Education, Skills, etc.), turn the recorder OFF
+            else:
+                in_exp_section = False
+        
+        # If the recorder is on, save the text
+        if in_exp_section:
+            exp_text.append(line)
+            
+    # Fallback: If we couldn't find any clear sections (weird formatting/bad OCR),
+    # return the whole resume so we don't accidentally score them a 0.
+    if not exp_text:
+        return resume_raw
+        
+    return "\n".join(exp_text)
+
+def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
+    current_year = datetime.datetime.now().year
+    
+    # 1. ISOLATE THE TEXT: Only look at the Experience section!
+    exp_section_text = isolate_experience_section(resume_raw)
+    text = exp_section_text.lower()
+    
+    end_kw = r'(?:current|present|now|ongoing|till\s+date|to\s+date)'
+
+    # 2. Find all ranges (now guaranteed to mostly be work history)
+    open_starts = [
+        int(y) for y in re.findall(
+            r'\b((?:19|20)\d{2})\s*[-\u2013\u2014]\s*' + end_kw, text, re.IGNORECASE)
+        if 1950 <= int(y) <= current_year
+    ]
+    
+    closed_pairs = [
+        (int(s), int(e))
+        for s, e in re.findall(
+            r'\b((?:19|20)\d{2})\s*[-\u2013\u2014]\s*((?:19|20)\d{2})\b', text)
+        if 1950 <= int(s) <= current_year and int(s) <= int(e) <= current_year + 1
+    ]
+
+    # 3. Convert all to a standard list of [start, end] intervals
+    intervals = []
+    for s in open_starts:
+        intervals.append([s, current_year])
+    for s, e in closed_pairs:
+        intervals.append([s, e])
+
+    # 4. Merge overlapping intervals to handle concurrent jobs and gaps safely
+    years_from_ranges = 0
+    if intervals:
+        intervals.sort(key=lambda x: x[0]) # Sort by start year
+        
+        merged = [intervals[0]]
+        for current in intervals[1:]:
+            prev = merged[-1]
+            if current[0] <= prev[1]:
+                # Overlapping jobs (e.g., freelance + full-time) -> merge them
+                merged[-1] = [prev[0], max(prev[1], current[1])]
+            else:
+                # Distinct job with a gap before it
+                merged.append(current)
+        
+        # Sum the total valid, non-overlapping durations
+        for s, e in merged:
+            years_from_ranges += (e - s)
+
+    # 5. Explicit "N years" fallback (scans the whole text just in case)
+    no_age = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume_normalized)
+    explicit_raw = re.findall(r'(\d+)\+?\s*years?', no_age)
+    years_from_explicit = max(map(int, explicit_raw)) if explicit_raw else 0
+
+    years_exp = years_from_ranges if years_from_ranges > 0 else years_from_explicit
+    years_exp = min(years_exp, 40) # Cap at 40 to prevent regex hallucination bugs
+    
+    if years_exp == 0 and 'project' in resume_normalized:
+        years_exp = 1
+
+    return {
+        'years':               years_exp,
+        'explicit_raw':        explicit_raw,
+        'open_ranges':         [(y, current_year) for y in open_starts],
+        'closed_ranges':       closed_pairs,
+        'years_from_ranges':   years_from_ranges,
+        'years_from_explicit': years_from_explicit,
+    }
 
 # ---------------------------------------------------------------------------
 # EXPERIENCE EXTRACTION
@@ -712,10 +831,9 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
 
     _resume_for_exp = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume)
-    exp_years_raw   = re.findall(r'(\d+)\+?\s*years?', _resume_for_exp)
-    years_exp       = max(map(int, exp_years_raw)) if exp_years_raw else 0
-    if 'project' in resume and years_exp == 0:
-        years_exp = 1
+    _exp          = _extract_experience_years(resume_raw, resume)
+    years_exp     = _exp['years']
+    exp_years_raw = _exp['explicit_raw']   # kept for exp_years_detected field below
 
     education_score, education_level = 0, 'none detected'
     if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
