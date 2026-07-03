@@ -593,6 +593,14 @@ def _extract_date_range_years(text: str):
 
 
 def _extract_explicit_years(text: str):
+    """
+    Fallback, only used when no date ranges were found at all. Every
+    context check is scoped to the sentence the number appears in (not a
+    raw character window, which can bleed context from a neighboring
+    sentence). Summary claims ("8 years of experience") are taken once;
+    distinct per-role mentions ("3 years" at job A, "4 years" at job B)
+    are summed.
+    """
     summary_values = []
     per_role_values = []
 
@@ -616,16 +624,18 @@ def _extract_explicit_years(text: str):
         return max(summary_values)
 
     # Per-role durations are additive by construction (one match per
-    # distinct "(N years)" occurrence) — sum them, don't dedupe by value.
+    # distinct "(N years)" occurrence) — sum them; do NOT dedupe by value,
+    # since two genuinely different jobs can legitimately both say "3 years".
     if per_role_values:
         return min(sum(per_role_values), 50.0)
 
     return 0.0
 
-# Headings that mark the START of a block we should read dates/durations
-# from. Deliberately narrower than the general _HEADING_RE used elsewhere
-# (that one also matches EDUCATION, SKILLS, CERTIFICATIONS, etc., which is
-# exactly what we need to exclude here).
+
+# ---------------------------------------------------------------------------
+# EXPERIENCE-SECTION ISOLATION  (only read tenure from Experience/Employment
+# blocks — not Education, Certifications, References, etc.)
+# ---------------------------------------------------------------------------
 _EXPERIENCE_SECTION_START_RE = re.compile(
     r'^(EXPERIENCE|WORK\s+EXPERIENCE|WORK\s+HISTORY|EMPLOYMENT(?:\s+HISTORY)?|'
     r'PROFESSIONAL\s+EXPERIENCE|RELEVANT\s+EXPERIENCE|CAREER\s+HISTORY|'
@@ -634,9 +644,9 @@ _EXPERIENCE_SECTION_START_RE = re.compile(
 )
 
 def _is_heading_line(line: str) -> bool:
-    """Reuses the same heading heuristic as classify_layout/_HEADING_RE
-    (defined further down in this module) so section boundaries here match
-    what the presentation scorer already treats as a section break."""
+    """Uses the same heading heuristic as _HEADING_RE (defined further down
+    in this module) so section boundaries here agree with what the
+    presentation scorer already treats as a section break."""
     stripped = line.strip()
     if not stripped:
         return False
@@ -646,21 +656,21 @@ def _is_heading_line(line: str) -> bool:
          and not re.search(r'[\d@]', stripped))
     )
 
-def _extract_experience_section(text_raw: str) -> tuple[str, bool]:
+def _extract_experience_section(text_raw: str) -> tuple:
     """
     Isolates Experience/Employment/Internship blocks so date-range and
-    duration parsing only reads years from actual work history — not
+    duration parsing only ever reads years from work history — not
     Education graduation years, Certification dates, References, or a
-    zip code/phone number that happens to sit near the word "years".
+    phone number/zip code that happens to sit near the word "years".
 
-    Handles multiple experience-labelled sections (e.g. "Professional
-    Experience" + a separate "Internships" section later in the doc) by
+    Handles multiple experience-labelled sections (e.g. a "Professional
+    Experience" block plus a separate later "Internships" block) by
     collecting all of them, each terminated by the next *non*-experience
     heading (Education, Skills, Certifications, ...) or end of document.
 
     Falls back to the full text when no experience heading is found at
-    all — a plain-text resume with no section headers should still get
-    scored, rather than silently returning 0.
+    all, so a plain-text resume with no section headers still gets
+    scored instead of returning a false zero.
     """
     lines = text_raw.splitlines()
     collected = []
@@ -688,43 +698,170 @@ def _extract_experience_section(text_raw: str) -> tuple[str, bool]:
 
     return '\n'.join(collected), True
 
-def extract_years_experience(resume_text: str) -> dict:
+
+# ---------------------------------------------------------------------------
+# ENTRY SEGMENTATION + JD-RELEVANCE SCORING (TF-IDF + skill-hit only)
+# ---------------------------------------------------------------------------
+_BLANK_LINE_SPLIT_RE = re.compile(r'\n\s*\n+')
+
+def _split_into_entries(section_text: str) -> list:
+    """
+    Heuristically splits an experience section into individual job/role
+    blocks on blank lines — the one formatting convention resumes reliably
+    share between distinct entries. Returns [] when the section can't be
+    meaningfully split (e.g. extraction collapsed everything into one
+    blob — the same failure ScreeningController's `looks_like_single_blob`
+    diagnostic flags), so callers fall back to scoring the whole section
+    as a unit instead of mis-splitting mid-sentence.
+    """
+    if not section_text.strip():
+        return []
+    raw = _BLANK_LINE_SPLIT_RE.split(section_text.strip())
+    entries = [p.strip() for p in raw if len(p.strip()) > 15]
+    return entries if len(entries) > 1 else []
+
+
+RELEVANCE_THRESHOLD = 0.08
+"""
+Minimum TF-IDF cosine similarity (job vs. entry, shared vocabulary fit
+across job + all entries) for an experience entry to count as JD-relevant
+by wording alone. Entry text is short — a few bullets — so these scores
+run lower than the full-document combined_similarity elsewhere in this
+file. Starting point to tune against real resumes, not a validated cutoff.
+An entry can also qualify via skill_hit below regardless of this threshold.
+
+Deliberately TF-IDF-only (no semantic/sentence-embedding scoring here):
+score_resume() already runs one model.encode() call per applicant for the
+whole-document combined_similarity. Adding a second encode() call per
+entry would roughly double the single most expensive operation in the
+pipeline, inside ScreeningController::evaluateApplicants(), which already
+calls /analyze once per applicant, sequentially, for every resume in a
+batch evaluation. TF-IDF + a direct skill match is a cheap, "good enough"
+coarse gate for which job entries are on-topic; the precise similarity
+score for the *whole* resume is still computed once, elsewhere.
+"""
+
+def _score_entries_relevance(entries_raw: list, job_norm: str, job_skills: list) -> list:
+    """
+    Scores every entry against the JD in a single batched TF-IDF fit
+    (shared vocabulary across job + all entries) instead of re-fitting per
+    entry, plus a direct skill-keyword check. No sentence-embedding call —
+    see RELEVANCE_THRESHOLD docstring above for why.
+    """
+    entries_norm = [normalize_text(e) for e in entries_raw]
+
+    tfidf_scores = [0.0] * len(entries_norm)
+    try:
+        vec = TfidfVectorizer(stop_words='english', ngram_range=(1, 2),
+                               min_df=1, sublinear_tf=True)
+        mat = vec.fit_transform([job_norm] + entries_norm)
+        sims = cosine_similarity(mat[0:1], mat[1:])[0]
+        tfidf_scores = [round(float(s), 3) for s in sims]
+    except Exception:
+        pass
+
+    results = []
+    for i, entry_norm in enumerate(entries_norm):
+        skill_hit = any(_skill_in_text(s, entry_norm) for s in job_skills)
+        results.append({'tfidf': tfidf_scores[i], 'skill_hit': skill_hit})
+    return results
+
+
+def _extract_years_from_text(text: str) -> dict:
+    """Date-ranges-first, explicit-statement-fallback tenure extraction
+    over an arbitrary chunk of text — reused for both the unfiltered
+    whole-section pass and the relevance-filtered subset of entries."""
+    date_range_years, intervals = _extract_date_range_years(text)
+    if intervals:
+        return {'years': date_range_years, 'method': 'date_ranges', 'intervals': intervals}
+
+    explicit_years = _extract_explicit_years(text)
+    if explicit_years > 0:
+        return {'years': explicit_years, 'method': 'explicit_statement', 'intervals': []}
+
+    return {'years': 0.0, 'method': 'none', 'intervals': []}
+
+
+def extract_years_experience(resume_text: str, job_text: str = '') -> dict:
     """
     Returns:
         {
-          'years_experience': float,
-          'method': 'date_ranges' | 'explicit_statement' | 'none',
-          'intervals': [(date, date), ...],   # only for 'date_ranges'
-          'scoped_to_experience_section': bool,  # False = no Experience
-                                                  # heading found; fell
-                                                  # back to whole document
+          'years_experience':             float,  # JD-relevant years
+                                                    # (== unfiltered if no JD,
+                                                    # or if entries couldn't
+                                                    # be split)
+          'years_experience_unfiltered':  float,  # all detected years in
+                                                    # the Experience section,
+                                                    # ignoring JD relevance
+          'method':                       'date_ranges' | 'explicit_statement' | 'none',
+          'intervals':                    [(date, date), ...],
+          'scoped_to_experience_section': bool,   # False = no Experience
+                                                    # heading found; fell
+                                                    # back to whole document
+          'relevance_filtered':           bool,   # True if JD entry
+                                                    # filtering actually ran
+          'entries': [ { 'preview': str, 'tfidf': float,
+                          'skill_hit': bool, 'included': bool }, ... ],
         }
+
+    No "'project' in resume -> 1 year" guessing: "project" appears on
+    nearly every resume and says nothing about tenure. Undetectable cases
+    return 0 with method='none' rather than a fabricated number.
     """
     section_text, section_found = _extract_experience_section(resume_text)
+    unfiltered = _extract_years_from_text(section_text)
 
-    date_range_years, intervals = _extract_date_range_years(section_text)
-    if intervals:
+    job_norm = normalize_text(job_text) if job_text and job_text.strip() else ''
+    entries_raw = _split_into_entries(section_text) if job_norm else []
+
+    # No JD, or the section didn't split into distinguishable entries —
+    # nothing to filter against, so report the unfiltered figure.
+    if not job_norm or not entries_raw:
         return {
-            'years_experience': date_range_years,
-            'method': 'date_ranges',
-            'intervals': intervals,
+            'years_experience':             unfiltered['years'],
+            'years_experience_unfiltered':  unfiltered['years'],
+            'method':                       unfiltered['method'],
+            'intervals':                    unfiltered['intervals'],
             'scoped_to_experience_section': section_found,
+            'relevance_filtered':           False,
+            'entries':                      [],
         }
 
-    explicit_years = _extract_explicit_years(section_text)
-    if explicit_years > 0:
+    job_skills = extract_skills_from_job(job_norm)
+    scored = _score_entries_relevance(entries_raw, job_norm, job_skills)
+
+    entries_debug, relevant_texts = [], []
+    for text, s in zip(entries_raw, scored):
+        included = s['tfidf'] >= RELEVANCE_THRESHOLD or s['skill_hit']
+        entries_debug.append({
+            'preview':   text[:120].replace('\n', ' '),
+            'tfidf':     s['tfidf'],
+            'skill_hit': s['skill_hit'],
+            'included':  included,
+        })
+        if included:
+            relevant_texts.append(text)
+
+    if not relevant_texts:
         return {
-            'years_experience': explicit_years,
-            'method': 'explicit_statement',
-            'intervals': [],
+            'years_experience':             0.0,
+            'years_experience_unfiltered':  unfiltered['years'],
+            'method':                       'none',
+            'intervals':                    [],
             'scoped_to_experience_section': section_found,
+            'relevance_filtered':           True,
+            'entries':                      entries_debug,
         }
 
+    filtered = _extract_years_from_text('\n\n'.join(relevant_texts))
     return {
-        'years_experience': 0.0,
-        'method': 'none',
-        'intervals': [],
+        'years_experience':             filtered['years'],
+        'years_experience_unfiltered':  unfiltered['years'],
+        'method':                       filtered['method'],
+        'intervals':                    filtered['intervals'],
         'scoped_to_experience_section': section_found,
+        'relevance_filtered':           True,
+        'entries':                      entries_debug,
     }
 
 
@@ -775,16 +912,20 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
 
-    # Run on resume_raw, not the lower-cased `resume`, so month names like
-    # "Jan"/"Dec" in date ranges are unaffected by normalization, and so the
-    # sentence splitter sees real punctuation.
-    exp_result = extract_years_experience(resume_raw)
-    years_exp              = exp_result['years_experience']
-    exp_extraction_method  = exp_result['method']          # 'date_ranges' | 'explicit_statement' | 'none'
-    exp_intervals          = [
+    # Run on resume_raw / job_raw (not the lower-cased `resume`/`job`), so
+    # month names like "Jan"/"Dec" in date ranges are unaffected by
+    # normalization, and the sentence splitter sees real punctuation.
+    # normalize_text() is applied internally where needed (entry relevance).
+    exp_result = extract_years_experience(resume_raw, job_raw)
+    years_exp                  = exp_result['years_experience']
+    years_exp_unfiltered       = exp_result['years_experience_unfiltered']
+    exp_extraction_method      = exp_result['method']
+    exp_relevance_filtered     = exp_result['relevance_filtered']
+    exp_entries_debug          = exp_result['entries']
+    exp_intervals = [
         {'start': s.isoformat(), 'end': e.isoformat()}
-    for s, e in exp_result.get('intervals', [])
-]
+        for s, e in exp_result.get('intervals', [])
+    ]
 
     education_score, education_level = 0, 'none detected'
     if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
@@ -822,9 +963,12 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'skill_gap':             skill_gap,
         'job_skills_extracted':  job_skills_extracted,
         # Experience
-        'years_experience':      years_exp,
-        'experience_method':     exp_extraction_method,   # replaces exp_years_detected
-        'experience_intervals':  exp_intervals,
+        'years_experience':              years_exp,
+        'years_experience_unfiltered':   years_exp_unfiltered,
+        'experience_method':             exp_extraction_method,
+        'experience_relevance_filtered': exp_relevance_filtered,
+        'experience_entries':            exp_entries_debug,
+        'experience_intervals':          exp_intervals,
         # Education / Cert
         'education_score':       education_score,
         'certification_score':   cert_score,
@@ -843,9 +987,9 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'concise_score':         layout['concise_score'],
         'organization_score':    layout['organization_score'],
         'layout_feedback':       layout['layout_feedback'],
-        # Extraction-quality signal (new) — lets callers / debug UI tell
-        # when presentation scoring ran on text that likely lost its
-        # original line structure during extraction (OCR, etc).
+        # Extraction-quality signal — lets callers / debug UI tell when
+        # presentation scoring ran on text that likely lost its original
+        # line structure during extraction (OCR, etc).
         'structure_confidence':  layout['structure_confidence'],
         'avg_words_per_line':    layout['avg_words_per_line'],
         # Normalized text (useful for debug)
