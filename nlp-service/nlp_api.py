@@ -628,7 +628,157 @@ def _extract_explicit_years(text: str):
     return 0.0
 
 
-def extract_years_experience(resume_text: str) -> dict:
+# ---------------------------------------------------------------------------
+# EXPERIENCE-SECTION ISOLATION  (only read tenure from Experience/Employment
+# blocks — not Education, Certifications, References, etc.)
+# ---------------------------------------------------------------------------
+_EXPERIENCE_KEYWORDS_RE = re.compile(
+    r'\b(EXPERIENCE|EMPLOYMENT|WORK\s+HISTORY|CAREER\s+HISTORY|INTERNSHIPS?)\b',
+    re.IGNORECASE,
+)
+
+def _is_heading_line(line: str) -> bool:
+    """Uses the same heading heuristic as _HEADING_RE (defined further down
+    in this module) so section boundaries here agree with what the
+    presentation scorer already treats as a section break."""
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return bool(
+        _HEADING_RE.match(stripped) or
+        (stripped.isupper() and 2 <= len(stripped.split()) <= 5
+         and not re.search(r'[\d@]', stripped))
+    )
+
+def _is_experience_heading(line: str) -> bool:
+    """
+    True if `line` reads as a heading (per _is_heading_line — ALL CAPS,
+    2-5 words, no digits/@) AND its text contains an employment/experience
+    keyword anywhere in it. Deliberately broader than a fixed phrase list:
+    catches "IT EMPLOYMENT", "CUSTOMER SERVICE EMPLOYMENT", "WORK
+    EXPERIENCE", "CAREER HISTORY", "INTERNSHIPS", etc. — any heading
+    fundamentally about work history, regardless of a qualifying prefix
+    or suffix word. Does NOT match "PROFESSIONAL DEVELOPMENT" or
+    "PROFESSIONAL MEMBERSHIPS" — "PROFESSIONAL" alone isn't a keyword —
+    so those stay correctly excluded from the experience section.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return _is_heading_line(stripped) and bool(_EXPERIENCE_KEYWORDS_RE.search(stripped))
+
+def _extract_experience_section(text_raw: str) -> tuple:
+    lines = text_raw.splitlines()
+    collected = []
+    in_section = False
+    found_any = False
+
+    for line in lines:
+        stripped = line.strip()
+
+        if stripped and _is_experience_heading(stripped):
+            in_section = True
+            found_any = True
+            continue
+
+        if stripped and in_section and _is_heading_line(stripped) \
+                and not _is_experience_heading(stripped):
+            in_section = False
+            continue
+
+        if in_section:
+            collected.append(line)
+
+    if not found_any:
+        return text_raw, False
+
+    return '\n'.join(collected), True
+
+
+# ---------------------------------------------------------------------------
+# ENTRY SEGMENTATION + JD-RELEVANCE SCORING (TF-IDF + skill-hit only)
+# ---------------------------------------------------------------------------
+_BLANK_LINE_SPLIT_RE = re.compile(r'\n\s*\n+')
+
+def _split_into_entries(section_text: str) -> list:
+    """
+    Heuristically splits an experience section into individual job/role
+    blocks on blank lines — the one formatting convention resumes reliably
+    share between distinct entries. Returns [] when the section can't be
+    meaningfully split (e.g. extraction collapsed everything into one
+    blob — the same failure ScreeningController's `looks_like_single_blob`
+    diagnostic flags), so callers fall back to scoring the whole section
+    as a unit instead of mis-splitting mid-sentence.
+    """
+    if not section_text.strip():
+        return []
+    raw = _BLANK_LINE_SPLIT_RE.split(section_text.strip())
+    entries = [p.strip() for p in raw if len(p.strip()) > 15]
+    return entries if len(entries) > 1 else []
+
+
+RELEVANCE_THRESHOLD = 0.08
+"""
+Minimum TF-IDF cosine similarity (job vs. entry, shared vocabulary fit
+across job + all entries) for an experience entry to count as JD-relevant
+by wording alone. Entry text is short — a few bullets — so these scores
+run lower than the full-document combined_similarity elsewhere in this
+file. Starting point to tune against real resumes, not a validated cutoff.
+An entry can also qualify via skill_hit below regardless of this threshold.
+
+Deliberately TF-IDF-only (no semantic/sentence-embedding scoring here):
+score_resume() already runs one model.encode() call per applicant for the
+whole-document combined_similarity. Adding a second encode() call per
+entry would roughly double the single most expensive operation in the
+pipeline, inside ScreeningController::evaluateApplicants(), which already
+calls /analyze once per applicant, sequentially, for every resume in a
+batch evaluation. TF-IDF + a direct skill match is a cheap, "good enough"
+coarse gate for which job entries are on-topic; the precise similarity
+score for the *whole* resume is still computed once, elsewhere.
+"""
+
+def _score_entries_relevance(entries_raw: list, job_norm: str, job_skills: list) -> list:
+    """
+    Scores every entry against the JD in a single batched TF-IDF fit
+    (shared vocabulary across job + all entries) instead of re-fitting per
+    entry, plus a direct skill-keyword check. No sentence-embedding call —
+    see RELEVANCE_THRESHOLD docstring above for why.
+    """
+    entries_norm = [normalize_text(e) for e in entries_raw]
+
+    tfidf_scores = [0.0] * len(entries_norm)
+    try:
+        vec = TfidfVectorizer(stop_words='english', ngram_range=(1, 2),
+                               min_df=1, sublinear_tf=True)
+        mat = vec.fit_transform([job_norm] + entries_norm)
+        sims = cosine_similarity(mat[0:1], mat[1:])[0]
+        tfidf_scores = [round(float(s), 3) for s in sims]
+    except Exception:
+        pass
+
+    results = []
+    for i, entry_norm in enumerate(entries_norm):
+        skill_hit = any(_skill_in_text(s, entry_norm) for s in job_skills)
+        results.append({'tfidf': tfidf_scores[i], 'skill_hit': skill_hit})
+    return results
+
+
+def _extract_years_from_text(text: str) -> dict:
+    """Date-ranges-first, explicit-statement-fallback tenure extraction
+    over an arbitrary chunk of text — reused for both the unfiltered
+    whole-section pass and the relevance-filtered subset of entries."""
+    date_range_years, intervals = _extract_date_range_years(text)
+    if intervals:
+        return {'years': date_range_years, 'method': 'date_ranges', 'intervals': intervals}
+
+    explicit_years = _extract_explicit_years(text)
+    if explicit_years > 0:
+        return {'years': explicit_years, 'method': 'explicit_statement', 'intervals': []}
+
+    return {'years': 0.0, 'method': 'none', 'intervals': []}
+
+
+def extract_years_experience(resume_text: str, job_text: str = '') -> dict:
     """
     Returns:
         {
@@ -649,12 +799,37 @@ def extract_years_experience(resume_text: str) -> dict:
             'intervals': intervals,
         }
 
-    explicit_years = _extract_explicit_years(resume_text)
-    if explicit_years > 0:
+    job_skills = extract_skills_from_job(job_norm)
+    scored = _score_entries_relevance(entries_raw, job_norm, job_skills)
+
+    entries_debug, relevant_texts = [], []
+    for text, s in zip(entries_raw, scored):
+        included = s['tfidf'] >= RELEVANCE_THRESHOLD or s['skill_hit']
+        entries_debug.append({
+            'preview':   text[:120].replace('\n', ' '),
+            'tfidf':     s['tfidf'],
+            'skill_hit': s['skill_hit'],
+            'included':  included,
+        })
+        if included:
+            relevant_texts.append(text)
+
+    if not relevant_texts:
+        # No entry cleared the relevance bar. This is more likely a
+        # threshold/short-entry miss than a genuine signal that none of
+        # the candidate's work history relates to the JD — reporting a
+        # hard 0 here would be a stronger, more damaging claim than this
+        # heuristic can actually support. Fall back to the unfiltered
+        # total instead of zeroing out real experience.
         return {
-            'years_experience': explicit_years,
-            'method': 'explicit_statement',
-            'intervals': [],
+            'years_experience':             unfiltered['years'],
+            'years_experience_unfiltered':  unfiltered['years'],
+            'method':                       unfiltered['method'],
+            'intervals':                    unfiltered['intervals'],
+            'scoped_to_experience_section': section_found,
+            'relevance_filtered':           False,
+            'relevance_filter_empty':       True,  # debug flag: filtering ran but matched nothing
+            'entries':                      entries_debug,
         }
 
     return {
