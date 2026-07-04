@@ -372,6 +372,12 @@ class ScreeningController extends Controller
      * result shape. Pulled out of tryCloudOcrNoImagick() so the batched
      * path below can reuse the exact same error-handling and overlay-
      * reconstruction logic instead of a second, drifting copy of it.
+     *
+     * FIXED: this had regressed to only reading ParsedResults[0] — i.e.
+     * only page 1 of a multi-page OCR.space response — silently truncating
+     * every scanned resume with more than one page down to its first page
+     * before any scoring ever ran. Restored the loop over ALL pages in
+     * $data['ParsedResults'], same as the original "Page 1 limitation" fix.
      */
     private function parseOcrResponseBody(string $rawBody, float $fileSizeMb): array
     {
@@ -388,35 +394,48 @@ class ScreeningController extends Controller
             return ['text' => '', '_failure_reason' => "OCR.space error (ExitCode {$exitCode}): {$errMsg} [file: {$fileSizeMb}MB]"];
         }
 
-        $result = $data['ParsedResults'][0] ?? [];
+        // EXTRACT ALL PAGES (not just ParsedResults[0])
+        $parsedResults = $data['ParsedResults'] ?? [];
+        $fullText = '';
+        $usedOverlay = false;
 
-        // Prefer structure-reconstructed text. Fall back to the old flat
-        // ParsedText if no overlay came back (e.g. the image type didn't
-        // support it, or overlay data was empty).
-        $overlayLines = $result['TextOverlay']['Lines'] ?? [];
-        $text = !empty($overlayLines)
-            ? trim($this->reconstructTextFromOverlay($overlayLines))
-            : '';
+        foreach ($parsedResults as $result) {
+            $overlayLines = $result['TextOverlay']['Lines'] ?? [];
 
-        if ($text === '') {
-            $text = trim($result['ParsedText'] ?? '');
+            $pageText = !empty($overlayLines)
+                ? trim($this->reconstructTextFromOverlay($overlayLines))
+                : '';
+
+            if ($pageText === '') {
+                $pageText = trim($result['ParsedText'] ?? '');
+            }
+
+            if (!empty($overlayLines)) {
+                $usedOverlay = true;
+            }
+
+            if ($pageText !== '') {
+                $fullText .= $pageText . "\n\n";
+            }
         }
 
-        if (strlen($text) > 50) {
+        $fullText = trim($fullText);
+
+        if (strlen($fullText) > 50) {
             return [
-                'text' => $text,
+                'text' => $fullText,
                 'method' => 'cloud_ocr',
-                'page_count' => 1,
-                'char_count' => strlen($text),
-                'used_overlay' => !empty($overlayLines),
+                'page_count' => count($parsedResults) > 0 ? count($parsedResults) : 1,
+                'char_count' => strlen($fullText),
+                'used_overlay' => $usedOverlay,
             ];
         }
 
         return [
             'text' => '',
-            '_failure_reason' => empty($result)
+            '_failure_reason' => empty($parsedResults)
                 ? "ParsedResults came back empty [file: {$fileSizeMb}MB] — request likely rejected without an explicit error flag"
-                : 'parsed only ' . strlen($text) . " chars (need >50) [file: {$fileSizeMb}MB]",
+                : 'parsed only ' . strlen($fullText) . " chars (need >50) [file: {$fileSizeMb}MB]",
         ];
     }
 

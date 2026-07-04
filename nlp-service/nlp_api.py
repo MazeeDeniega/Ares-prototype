@@ -618,12 +618,16 @@ def _extract_explicit_years(text: str):
             if num and 0 < num <= 60:
                 per_role_values.append(num)
 
+    # A "summary" claim ("8 years of experience") is a single headline
+    # statement, not one-per-role — take the largest such claim, not a sum.
     if summary_values:
-        return max(set(summary_values))
+        return max(summary_values)
 
+    # Per-role durations are additive by construction (one match per
+    # distinct "(N years)" occurrence) — sum them; do NOT dedupe by value,
+    # since two genuinely different jobs can legitimately both say "3 years".
     if per_role_values:
-        total = sum(set(per_role_values))
-        return min(total, 50.0)
+        return min(sum(per_role_values), 50.0)
 
     return 0.0
 
@@ -668,6 +672,21 @@ def _is_experience_heading(line: str) -> bool:
     return _is_heading_line(stripped) and bool(_EXPERIENCE_KEYWORDS_RE.search(stripped))
 
 def _extract_experience_section(text_raw: str) -> tuple:
+    """
+    Isolates Experience/Employment/Internship blocks so date-range and
+    duration parsing only ever reads years from work history — not
+    Education graduation years, Certification dates, References, or a
+    phone number/zip code that happens to sit near the word "years".
+
+    Handles multiple experience-labelled sections (e.g. a "Professional
+    Experience" block plus a separate later "Internships" block) by
+    collecting all of them, each terminated by the next *non*-experience
+    heading (Education, Skills, Certifications, ...) or end of document.
+
+    Falls back to the full text when no experience heading is found at
+    all, so a plain-text resume with no section headers still gets
+    scored instead of returning a false zero.
+    """
     lines = text_raw.splitlines()
     collected = []
     in_section = False
@@ -782,21 +801,33 @@ def extract_years_experience(resume_text: str, job_text: str = '') -> dict:
     """
     Returns:
         {
-          'years_experience': float,
-          'method': 'date_ranges' | 'explicit_statement' | 'none',
-          'intervals': [(date, date), ...]   # only for 'date_ranges'
+          'years_experience':             float,  # JD-relevant years
+          'years_experience_unfiltered':  float,
+          'method':                       'date_ranges' | 'explicit_statement' | 'none',
+          'intervals':                    [(date, date), ...],
+          'scoped_to_experience_section': bool,
+          'relevance_filtered':           bool,
+          'relevance_filter_empty':       bool,
+          'entries': [ { 'preview': str, 'tfidf': float,
+                          'skill_hit': bool, 'included': bool }, ... ],
         }
-
-    No "'project' in resume -> 1 year" guessing: "project" appears on
-    nearly every resume and says nothing about tenure. Undetectable cases
-    return 0 with method='none' rather than a fabricated number.
     """
-    date_range_years, intervals = _extract_date_range_years(resume_text)
-    if intervals:
+    section_text, section_found = _extract_experience_section(resume_text)
+    unfiltered = _extract_years_from_text(section_text)
+
+    job_norm = normalize_text(job_text) if job_text and job_text.strip() else ''
+    entries_raw = _split_into_entries(section_text) if job_norm else []
+
+    if not job_norm or not entries_raw:
         return {
-            'years_experience': date_range_years,
-            'method': 'date_ranges',
-            'intervals': intervals,
+            'years_experience':             unfiltered['years'],
+            'years_experience_unfiltered':  unfiltered['years'],
+            'method':                       unfiltered['method'],
+            'intervals':                    unfiltered['intervals'],
+            'scoped_to_experience_section': section_found,
+            'relevance_filtered':           False,
+            'relevance_filter_empty':       False,
+            'entries':                      [],
         }
 
     job_skills = extract_skills_from_job(job_norm)
@@ -815,12 +846,6 @@ def extract_years_experience(resume_text: str, job_text: str = '') -> dict:
             relevant_texts.append(text)
 
     if not relevant_texts:
-        # No entry cleared the relevance bar. This is more likely a
-        # threshold/short-entry miss than a genuine signal that none of
-        # the candidate's work history relates to the JD — reporting a
-        # hard 0 here would be a stronger, more damaging claim than this
-        # heuristic can actually support. Fall back to the unfiltered
-        # total instead of zeroing out real experience.
         return {
             'years_experience':             unfiltered['years'],
             'years_experience_unfiltered':  unfiltered['years'],
@@ -828,14 +853,20 @@ def extract_years_experience(resume_text: str, job_text: str = '') -> dict:
             'intervals':                    unfiltered['intervals'],
             'scoped_to_experience_section': section_found,
             'relevance_filtered':           False,
-            'relevance_filter_empty':       True,  # debug flag: filtering ran but matched nothing
+            'relevance_filter_empty':       True,
             'entries':                      entries_debug,
         }
 
+    filtered = _extract_years_from_text('\n\n'.join(relevant_texts))
     return {
-        'years_experience': 0.0,
-        'method': 'none',
-        'intervals': [],
+        'years_experience':             filtered['years'],
+        'years_experience_unfiltered':  unfiltered['years'],
+        'method':                       filtered['method'],
+        'intervals':                    filtered['intervals'],
+        'scoped_to_experience_section': section_found,
+        'relevance_filtered':           True,
+        'relevance_filter_empty':       False,
+        'entries':                      entries_debug,
     }
 
 
@@ -886,11 +917,8 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
 
-    _resume_for_exp = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume)
-    exp_years_raw   = re.findall(r'(\d+)\+?\s*years?', _resume_for_exp)
-    years_exp       = max(map(int, exp_years_raw)) if exp_years_raw else 0
-    if 'project' in resume and years_exp == 0:
-        years_exp = 1
+    exp_result = extract_years_experience(resume_raw, job_raw)
+    years_exp = exp_result['years_experience']
 
     education_score, education_level = 0, 'none detected'
     if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
@@ -928,8 +956,11 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'skill_gap':             skill_gap,
         'job_skills_extracted':  job_skills_extracted,
         # Experience
-        'years_experience':      years_exp,
-        'exp_years_detected':    list(map(int, exp_years_raw)) if exp_years_raw else [],
+        'years_experience':              exp_result['years_experience'],
+        'years_experience_unfiltered':   exp_result['years_experience_unfiltered'],
+        'experience_method':             exp_result['method'],
+        'experience_relevance_filtered': exp_result['relevance_filtered'],
+        'experience_entries':            exp_result['entries'],
         # Education / Cert
         'education_score':       education_score,
         'certification_score':   cert_score,
@@ -948,9 +979,9 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'concise_score':         layout['concise_score'],
         'organization_score':    layout['organization_score'],
         'layout_feedback':       layout['layout_feedback'],
-        # Extraction-quality signal (new) — lets callers / debug UI tell
-        # when presentation scoring ran on text that likely lost its
-        # original line structure during extraction (OCR, etc).
+        # Extraction-quality signal — lets callers / debug UI tell when
+        # presentation scoring ran on text that likely lost its original
+        # line structure during extraction (OCR, etc).
         'structure_confidence':  layout['structure_confidence'],
         'avg_words_per_line':    layout['avg_words_per_line'],
         # Normalized text (useful for debug)
