@@ -31,9 +31,6 @@ export default function AuthForm({
             <span className="auth-branding__logo-text">ARES</span> */}
             <img src={aresLogo} alt='Logo' />
           </div>
-          <p className="auth-branding__tagline">
-            Smarter Hiring Decisions, Powered by Your Preferences.
-          </p>
         </div>
       </aside>
 

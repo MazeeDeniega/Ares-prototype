@@ -37,24 +37,30 @@ export default function JobList() {
 
         {jobList.length > 0 ? (
         jobList.map((job) => (
-        <article className="job-card" key={job.id}>
-          <h2 className="job-card__title"><a href={`/jobs/${job.id}`}>{job.title}</a></h2>
-    
-          <div className="job-card__meta">
-            <span className="job-card__meta-label">Posted by:</span>
-            <span className="job-card__meta-value">{job.user?.name ?? 'Unknown'}</span>
-          </div>
-    
-          <p className="job-card__description">{truncate(stripHtml(job.description))}</p>
-    
-          <div className="job-card__footer">
-            <a href={`/apply/${job.id}`}>
-            <button className="job-card__apply-btn">
-              Apply now
-            </button>
-            </a>
-          </div>
-        </article>
+        <div>
+          <a href={`/jobs/${job.id}`} className='job-openings__main'>
+            <article className="job-card" key={job.id}>
+              <h2 className="job-card__title">{job.title}</h2>
+        
+              <div className="job-card__meta">
+                <span className="job-card__meta-label">Posted by:</span>
+                <span className="job-card__meta-value">{job.user?.name ?? 'Unknown'}</span>
+              </div>
+        
+              <p className="job-card__description">{truncate(stripHtml(job.description))}</p>
+        
+              <div className="job-card__footer">
+                <a href={`/apply/${job.id}`}>
+                <button className="job-card__apply-btn">
+                  Apply now
+                </button>
+                </a>
+              </div>
+            </article>
+          </a>
+
+        </div>
+        
         ))) : (<p>No jobs available, try refreshing the Page.</p>) }
       </section>
  
