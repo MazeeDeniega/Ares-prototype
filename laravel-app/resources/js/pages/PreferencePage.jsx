@@ -200,9 +200,6 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
       if (response.ok) {
         setSuccess("Preferences saved successfully!");
         if (postUrl === `/jobs/${job?.id}/preferences`)
-          setSuccess(
-          `Preferences saved successfully! Redirecting to evaluation in 
-          (${secondsLeft}) second(${secondsLeft !== 1 ? 's' : ''})...) `);
           setRedirect(true);
 
       } else {
@@ -252,7 +249,16 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
  
         {/* Flash messages */}
         {error   && <div className="pref-flash pref-flash--error">{error}</div>}
-        {success && <div className="pref-flash pref-flash--success">{success}</div>}
+
+        {success && (
+          <div className="pref-flash pref-flash--success">
+            {postUrl === `/jobs/${job?.id}/preferences`
+              ? `${success} Redirecting to evaluation page in ${secondsLeft} second${
+                  secondsLeft !== 1 ? "s" : ""
+                }...`
+              : success}
+          </div>
+        )}
  
         <div className="pref-page__content">
 
