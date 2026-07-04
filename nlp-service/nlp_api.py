@@ -636,10 +636,8 @@ def _extract_explicit_years(text: str):
 # EXPERIENCE-SECTION ISOLATION  (only read tenure from Experience/Employment
 # blocks — not Education, Certifications, References, etc.)
 # ---------------------------------------------------------------------------
-_EXPERIENCE_SECTION_START_RE = re.compile(
-    r'^(EXPERIENCE|WORK\s+EXPERIENCE|WORK\s+HISTORY|EMPLOYMENT(?:\s+HISTORY)?|'
-    r'PROFESSIONAL\s+EXPERIENCE|RELEVANT\s+EXPERIENCE|CAREER\s+HISTORY|'
-    r'INTERNSHIPS?)\s*:?\s*$',
+_EXPERIENCE_KEYWORDS_RE = re.compile(
+    r'\b(EXPERIENCE|EMPLOYMENT|WORK\s+HISTORY|CAREER\s+HISTORY|INTERNSHIPS?)\b',
     re.IGNORECASE,
 )
 
@@ -656,22 +654,24 @@ def _is_heading_line(line: str) -> bool:
          and not re.search(r'[\d@]', stripped))
     )
 
+def _is_experience_heading(line: str) -> bool:
+    """
+    True if `line` reads as a heading (per _is_heading_line — ALL CAPS,
+    2-5 words, no digits/@) AND its text contains an employment/experience
+    keyword anywhere in it. Deliberately broader than a fixed phrase list:
+    catches "IT EMPLOYMENT", "CUSTOMER SERVICE EMPLOYMENT", "WORK
+    EXPERIENCE", "CAREER HISTORY", "INTERNSHIPS", etc. — any heading
+    fundamentally about work history, regardless of a qualifying prefix
+    or suffix word. Does NOT match "PROFESSIONAL DEVELOPMENT" or
+    "PROFESSIONAL MEMBERSHIPS" — "PROFESSIONAL" alone isn't a keyword —
+    so those stay correctly excluded from the experience section.
+    """
+    stripped = line.strip()
+    if not stripped:
+        return False
+    return _is_heading_line(stripped) and bool(_EXPERIENCE_KEYWORDS_RE.search(stripped))
+
 def _extract_experience_section(text_raw: str) -> tuple:
-    """
-    Isolates Experience/Employment/Internship blocks so date-range and
-    duration parsing only ever reads years from work history — not
-    Education graduation years, Certification dates, References, or a
-    phone number/zip code that happens to sit near the word "years".
-
-    Handles multiple experience-labelled sections (e.g. a "Professional
-    Experience" block plus a separate later "Internships" block) by
-    collecting all of them, each terminated by the next *non*-experience
-    heading (Education, Skills, Certifications, ...) or end of document.
-
-    Falls back to the full text when no experience heading is found at
-    all, so a plain-text resume with no section headers still gets
-    scored instead of returning a false zero.
-    """
     lines = text_raw.splitlines()
     collected = []
     in_section = False
@@ -680,13 +680,13 @@ def _extract_experience_section(text_raw: str) -> tuple:
     for line in lines:
         stripped = line.strip()
 
-        if stripped and _EXPERIENCE_SECTION_START_RE.match(stripped):
+        if stripped and _is_experience_heading(stripped):
             in_section = True
             found_any = True
-            continue  # don't include the heading line itself
+            continue
 
         if stripped and in_section and _is_heading_line(stripped) \
-                and not _EXPERIENCE_SECTION_START_RE.match(stripped):
+                and not _is_experience_heading(stripped):
             in_section = False
             continue
 
@@ -843,13 +843,20 @@ def extract_years_experience(resume_text: str, job_text: str = '') -> dict:
             relevant_texts.append(text)
 
     if not relevant_texts:
+        # No entry cleared the relevance bar. This is more likely a
+        # threshold/short-entry miss than a genuine signal that none of
+        # the candidate's work history relates to the JD — reporting a
+        # hard 0 here would be a stronger, more damaging claim than this
+        # heuristic can actually support. Fall back to the unfiltered
+        # total instead of zeroing out real experience.
         return {
-            'years_experience':             0.0,
+            'years_experience':             unfiltered['years'],
             'years_experience_unfiltered':  unfiltered['years'],
-            'method':                       'none',
-            'intervals':                    [],
+            'method':                       unfiltered['method'],
+            'intervals':                    unfiltered['intervals'],
             'scoped_to_experience_section': section_found,
-            'relevance_filtered':           True,
+            'relevance_filtered':           False,
+            'relevance_filter_empty':       True,  # debug flag: filtering ran but matched nothing
             'entries':                      entries_debug,
         }
 
