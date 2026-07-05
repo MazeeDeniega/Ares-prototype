@@ -602,6 +602,38 @@ _JOB_ENTRY_LINE = re.compile(
     re.IGNORECASE
 )
 
+_EDU_LINE_SIGNAL = re.compile(
+    r'\b(bachelor|master|ph\.?d|associate\s+degree|diploma|elementary\s+school'
+    r'|high\s+school|senior\s+high|junior\s+high|college|university|degree'
+    r'|major\s+in|latin\s+honors?|barangay|brgy\.?)\b',
+    re.IGNORECASE
+)
+
+def _strip_education_lines(text: str) -> str:
+    """Remove lines that are clearly education content (degree/school
+    keywords), plus a small window of lines around each one, since the
+    actual date range for a school entry is usually on its own separate
+    line rather than the same line as the degree/school-name keyword.
+
+    This exists because some PDF layouts extract ALL section content before
+    ANY section heading labels (which cluster together separately elsewhere
+    in the raw text). When that happens, the "EDUCATION" heading that's
+    supposed to stop the experience recorder can appear in the extracted
+    text AFTER the actual education entries (school name, degree, dates)
+    rather than before them — so a school's date range gets swept into the
+    "experience" text and miscounted as work experience. A job bullet is
+    very unlikely to mention "Bachelor of Arts" or "Elementary School", so
+    filtering on this content is a safe, targeted way to catch it regardless
+    of where the section boundaries actually landed.
+    """
+    lines = text.splitlines()
+    excluded_idx = set()
+    for i, line in enumerate(lines):
+        if _EDU_LINE_SIGNAL.search(line):
+            for j in range(max(0, i - 2), min(len(lines), i + 3)):
+                excluded_idx.add(j)
+    return "\n".join(line for i, line in enumerate(lines) if i not in excluded_idx)
+
 def isolate_experience_section(resume_raw: str) -> str:
     """Extracts only the text belonging to Experience/Employment sections.
 
@@ -672,14 +704,21 @@ def isolate_experience_section(resume_raw: str) -> str:
     #       all (heading text didn't survive extraction — see case 4 in the
     #       docstring above).
     #   (b) A heading WAS found, but the text captured under it contains no
-    #       year/date at all. This happens when a PDF's layout extracts the
-    #       heading and bare job-title labels in one place, but the actual
-    #       company names, date ranges, and bullets earlier in the raw text
-    #       — meaning by the time the recorder turns on at the heading, all
-    #       the real dated content has already gone by. The isolated result
-    #       looks "successful" (non-empty, has an experience heading) but is
-    #       actually just a list of job titles with zero usable dates.
-    exp_text_has_dates = bool(re.search(r'\b(?:19|20)\d{2}\b', "\n".join(exp_text)))
+    #       usable (non-education) year/date at all. This happens when a
+    #       PDF's layout extracts the heading and bare job-title labels in
+    #       one place, but the actual company names, date ranges, and
+    #       bullets earlier in the raw text — meaning by the time the
+    #       recorder turns on at the heading, all the real dated content has
+    #       already gone by. The isolated result looks "successful"
+    #       (non-empty, has an experience heading) but is actually just a
+    #       list of job titles with zero usable dates — or, worse, the
+    #       *next* stop-heading (e.g. EDUCATION) is ALSO too late relative
+    #       to its own content, so what got captured is actually a stretch
+    #       of leaked education entries rather than real job dates. Checking
+    #       against the education-stripped text (not the raw captured text)
+    #       is what catches this second case — the raw text technically
+    #       "has a year" in it, just not one that belongs to a real job.
+    exp_text_has_dates = bool(re.search(r'\b(?:19|20)\d{2}\b', _strip_education_lines("\n".join(exp_text))))
 
     if not saw_experience_heading or not exp_text_has_dates:
         start_idx = None
@@ -703,11 +742,12 @@ def isolate_experience_section(resume_raw: str) -> str:
                     candidate_exp_text.append(line)
 
             # Only prefer this content-based result if it actually found
-            # dates the heading-based pass missed. Otherwise keep whatever
-            # the heading-based pass produced (don't make things worse for
-            # resumes where the heading-based result was already correct
-            # but just happens to be date-free for some other reason).
-            if re.search(r'\b(?:19|20)\d{2}\b', "\n".join(candidate_exp_text)):
+            # usable (non-education) dates the heading-based pass missed.
+            # Otherwise keep whatever the heading-based pass produced (don't
+            # make things worse for resumes where the heading-based result
+            # was already correct but just happens to be date-free for some
+            # other reason).
+            if re.search(r'\b(?:19|20)\d{2}\b', _strip_education_lines("\n".join(candidate_exp_text))):
                 exp_text = candidate_exp_text
 
     # Fallback: If we couldn't find any clear sections (weird formatting/bad OCR),
@@ -715,12 +755,13 @@ def isolate_experience_section(resume_raw: str) -> str:
     if not exp_text:
         return resume_raw
 
-    return "\n".join(exp_text)
+    return _strip_education_lines("\n".join(exp_text))
 
 def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
     current_year = datetime.datetime.now().year
     
-    # 1. ISOLATE THE TEXT: Only look at the Experience section!
+    # 1. ISOLATE THE TEXT: Only look at the Experience section! (education
+    # lines are already stripped out inside isolate_experience_section)
     exp_section_text = isolate_experience_section(resume_raw)
     text = exp_section_text.lower()
     
@@ -790,7 +831,70 @@ def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
         # A single-year stint with no explicit end date -> count as one year.
         intervals.append([y, y + 1])
 
-    # 4. Merge overlapping intervals to handle concurrent jobs and gaps safely
+    # 3b. MONTH-PRECISION FRACTIONAL CREDIT for stints that start and end
+    # within the SAME calendar year, e.g. "2025-02 - 2025-04" (Feb-Apr 2025)
+    # or "Aug 2021 - Aug 2021". The whole-year interval math above computes
+    # (end_year - start_year), which is always 0 for these — a short
+    # internship/gig gets literally zero credit even though it was real,
+    # dated work. This block finds any range where BOTH the start and end
+    # month are explicitly given, and where they land in the same year, and
+    # credits it as a fraction of a year based on the actual month span.
+    # Cross-year ranges are untouched here (they already get sensible whole-
+    # year credit above); this only fills the specific gap where whole-year
+    # math structurally can't produce anything but zero.
+    _month_tok_named = r'(?:(?P<{0}m>[A-Za-z]{{3,9}})\.?\s+)?(?P<{0}y>(?:19|20)\d{{2}})(?:-(?P<{0}iso>0[1-9]|1[0-2]))?'
+    _same_year_closed_re = re.compile(
+        r'\b' + _month_tok_named.format('s') + sep + _month_tok_named.format('e') + r'\b',
+        re.IGNORECASE
+    )
+    _same_year_open_re = re.compile(
+        r'\b' + _month_tok_named.format('s') + sep + end_kw,
+        re.IGNORECASE
+    )
+
+    def _resolve_month(name, iso):
+        if iso:
+            return int(iso)
+        if name:
+            return _MONTH_NAMES.get(name.lower().rstrip('.'))
+        return None
+
+    same_year_month_intervals = {}  # year -> list of [start_month, end_month]
+    current_month = datetime.datetime.now().month
+
+    for m in _same_year_closed_re.finditer(text):
+        try:
+            s_year, e_year = int(m.group('sy')), int(m.group('ey'))
+        except (TypeError, ValueError):
+            continue
+        if s_year != e_year or not (1950 <= s_year <= current_year):
+            continue
+        s_month = _resolve_month(m.group('sm'), m.group('siso'))
+        e_month = _resolve_month(m.group('em'), m.group('eiso'))
+        if s_month is None or e_month is None or e_month < s_month:
+            # Not enough info (or malformed) to safely credit a fraction —
+            # leave it at the existing 0 rather than guess.
+            continue
+        same_year_month_intervals.setdefault(s_year, []).append([s_month, e_month])
+
+    for m in _same_year_open_re.finditer(text):
+        try:
+            s_year = int(m.group('sy'))
+        except (TypeError, ValueError):
+            continue
+        if s_year != current_year:
+            continue  # a genuinely multi-year open range already gets credit above
+        s_month = _resolve_month(m.group('sm'), m.group('siso'))
+        if s_month is None or s_month > current_month:
+            continue
+        same_year_month_intervals.setdefault(s_year, []).append([s_month, current_month])
+
+    # 4. Merge overlapping WHOLE-YEAR intervals to handle concurrent jobs
+    # and gaps safely. Computed here (before the same-year fractional total
+    # below) because the same-year credit needs to know which years are
+    # already fully covered by a continuous multi-year job span, so it
+    # doesn't double-count time that's already accounted for.
+    merged = []
     years_from_ranges = 0
     if intervals:
         intervals.sort(key=lambda x: x[0]) # Sort by start year
@@ -809,25 +913,64 @@ def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
         for s, e in merged:
             years_from_ranges += (e - s)
 
+    def _year_covered_by_merged_range(year):
+        # True if this calendar year sits strictly inside an existing
+        # continuous whole-year job span (not just touching its edge) --
+        # meaning that year's employment is already counted above, so a
+        # same-year fractional stint within it would be double-counting.
+        return any(s <= year < e for s, e in merged)
+
+    # Merge same-year month intervals per year so overlapping/concurrent
+    # same-year stints don't get double-counted, then sum total months --
+    # skipping any year that's already covered by a continuous whole-year
+    # job span from the merge above.
+    total_same_year_months = 0
+    for year, ivs in same_year_month_intervals.items():
+        if _year_covered_by_merged_range(year):
+            continue
+        ivs.sort()
+        merged_months = [ivs[0]]
+        for cur in ivs[1:]:
+            if cur[0] <= merged_months[-1][1] + 1:
+                merged_months[-1][1] = max(merged_months[-1][1], cur[1])
+            else:
+                merged_months.append(cur)
+        for sm, em in merged_months:
+            total_same_year_months += (em - sm + 1)
+
+    years_from_same_year_months = round(total_same_year_months / 12.0, 2)
+
+
+
     # 5. Explicit "N years" fallback (scans the whole text just in case)
     no_age = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume_normalized)
     explicit_raw = re.findall(r'(\d+)\+?\s*years?', no_age)
     years_from_explicit = max(map(int, explicit_raw)) if explicit_raw else 0
 
-    years_exp = years_from_ranges if years_from_ranges > 0 else years_from_explicit
+    # Combine the whole-year total (cross-year ranges, open ranges,
+    # standalone-year entries) with the month-precision fractional credit
+    # for same-year stints computed above. years_precise keeps the decimal
+    # detail (useful for debugging/the sandbox); years is the rounded whole
+    # number used everywhere else, preserving the existing integer contract.
+    years_precise = round(years_from_ranges + years_from_same_year_months, 2)
+
+    years_exp = years_precise if years_precise > 0 else years_from_explicit
+    years_exp = round(years_exp)
     years_exp = min(years_exp, 40) # Cap at 40 to prevent regex hallucination bugs
-    
+
     if years_exp == 0 and 'project' in resume_normalized:
         years_exp = 1
 
     return {
-        'years':               years_exp,
-        'explicit_raw':        explicit_raw,
-        'open_ranges':         [(y, current_year) for y in open_starts],
-        'closed_ranges':       closed_pairs,
-        'standalone_years':    standalone_years,
-        'years_from_ranges':   years_from_ranges,
-        'years_from_explicit': years_from_explicit,
+        'years':                    years_exp,
+        'years_precise':            years_precise,
+        'explicit_raw':             explicit_raw,
+        'open_ranges':              [(y, current_year) for y in open_starts],
+        'closed_ranges':            closed_pairs,
+        'standalone_years':         standalone_years,
+        'years_from_ranges':        years_from_ranges,
+        'years_from_same_year_months': years_from_same_year_months,
+        'years_from_explicit':      years_from_explicit,
     }
 
 # ---------------------------------------------------------------------------
