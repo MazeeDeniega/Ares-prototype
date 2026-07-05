@@ -70,7 +70,7 @@ export default function Login() {
         <Link to='/register'>Sign up</Link>
       </span>
       <span>or</span>
-      <Link to='/jobs'>Apply for jobs</Link>
+      <a href='/jobs'>Apply for jobs</a>
     </>
   );
  

@@ -14,6 +14,7 @@
   justify-content: flex-end;
   padding: var(--space-3xl) var(--space-2xl);
   overflow: hidden;
+  justify-content: center;
 }
 
 .auth-branding__bg {
@@ -36,6 +37,7 @@
   height: auto;
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: var(--space-sm);
   margin-bottom: var(--space-md);
 }
@@ -43,23 +45,6 @@
 .auth-branding__logo-icon {
   color: var(--color-text-dark);
   flex-shrink: 0;
-}
- 
-.auth-branding__logo-text {
-  font-family: var(--font-display);
-  font-size: var(--text-3xl);
-  font-weight: 800;
-  color: var(--color-text-dark);
-  letter-spacing: 0.04em;
-}
- 
-.auth-branding__tagline {
-  font-family: var(--font-display);
-  font-size: var(--text-xl);
-  font-weight: 700;
-  color: var(--color-text-dark);
-  line-height: 1.35;
-  max-width: 260px;
 }
  
 /* Right panel (form area) */

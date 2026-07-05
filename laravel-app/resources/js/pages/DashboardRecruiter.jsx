@@ -3,7 +3,7 @@ import { Link } from "react-router";
 import '../../css/pages/dashboardrecruiter.css';
 import AddJobModal from "../components/AddJobModal";
 import DashboardLayout from "../layouts/DashboardLayout";
-import { BsPencilSquare, BsTrash } from 'react-icons/bs';
+import { BsJournalMedical, BsTrash } from 'react-icons/bs';
 
 export default function DashboardRecruiter() {
   document.title = "Recruiter Dashboard";
@@ -112,14 +112,14 @@ export default function DashboardRecruiter() {
                       onClick={() => (window.location.href = `/screening/${job.id}`)}
                     >
                       <td>{job.title}</td>
-                      <td className="table-job-desc">{stripHtml(job.description)}</td>
+                      <td className="table-job-desc"><a href={`/jobs/${job.id}`}>{stripHtml(job.description)}</a></td>
                       <td style={{ textAlign: "center" }}>
                         {job.applications_count ?? job.applications?.length ?? 0}
                       </td>
                       <td className="action-btns" onClick={(e) => e.stopPropagation()}>
                         <a href={`/jobs/${job.id}/preferences`}>
                           <button className="icon-btn edit-icon-btn" type="button" title="Edit preferences">
-                            <BsPencilSquare />
+                            <BsJournalMedical />
                           </button>
                         </a>
                         <button

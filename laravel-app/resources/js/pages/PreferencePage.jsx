@@ -118,7 +118,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
 
   const [error, setError]   = useState('');
   const [success, setSuccess] = useState(flash?.success ?? '');
-  const [secondsLeft, setSecondsLeft] = useState(5);
+  const [secondsLeft, setSecondsLeft] = useState(3);
   const [redirect, setRedirect] = useState(false);
   const targetTimeRef = useRef(null);
   const intervalRef = useRef(null);
@@ -199,8 +199,8 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
       });
  
       if (response.ok) {
-        setSuccess('Preferences saved successfully! ');
-        if (postUrl === `/jobs/${job.id}/preferences`)
+        setSuccess("Preferences saved successfully!");
+        if (postUrl === `/jobs/${job?.id}/preferences`)
           setRedirect(true);
 
       } else {
@@ -220,7 +220,7 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
   useEffect(() => {
     if (redirect){
     
-    targetTimeRef.current = Date.now() + (secondsLeft * 1000); // 5 seconds from now
+    targetTimeRef.current = Date.now() + (secondsLeft * 1000); // 3 seconds from now
     intervalRef.current = setInterval(() => {
       const now = Date.now();
       const remaining = Math.max(0, Math.round((targetTimeRef.current - now) / 1000));
@@ -250,10 +250,16 @@ export default function PreferencePage({ title, subtitle, postUrl }) {
  
         {/* Flash messages */}
         {error   && <div className="pref-flash pref-flash--error">{error}</div>}
-        {success && <div className="pref-flash pref-flash--success">
-          {success} 
-          Redirecting to evaluation in <strong>{secondsLeft} second{secondsLeft !== 1 ? 's' : ''}</strong>...
-        </div>}
+
+        {success && (
+          <div className="pref-flash pref-flash--success">
+            {postUrl === `/jobs/${job?.id}/preferences`
+              ? `${success} Redirecting to evaluation page in ${secondsLeft} second${
+                  secondsLeft !== 1 ? "s" : ""
+                }...`
+              : success}
+          </div>
+        )}
  
         <div className="pref-page__content">
 

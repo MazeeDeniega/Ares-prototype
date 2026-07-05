@@ -112,6 +112,10 @@ overflow: hidden;
 text-overflow: ellipsis;
 }
 
+.table-job-desc a {
+  color: black;
+}
+
 .action-btns {
 width: 100%;
 height: auto;
