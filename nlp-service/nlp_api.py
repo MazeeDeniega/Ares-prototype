@@ -474,6 +474,504 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
         "avg_words_per_line":   round(avg_words_per_line, 1),
     }
 
+_SECTION_HEADING_PATTERN = re.compile(
+    r'^(EDUCATION|EXPERIENCES?|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|SKILLS|PROJECTS?'
+    r'|CERTIFICATIONS?|CERTIFICATES?|SUMMARY|OBJECTIVE'
+    r'|TRAINING|WORK\s+HISTORY|EMPLOYMENT'
+    r'|PROFESSIONAL\s+(?:SUMMARY|SKILLS|PROFILE)|TECHNICAL\s+SKILLS'
+    r'|RELEVANT\s+(?:COURSEWORK|EXPERIENCE|SKILLS|PROJECTS?)'
+    r'|INTERNSHIP|ORGANIZATIONAL|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)\b',
+    re.IGNORECASE
+)
+
+# Canonical, whitespace-free heading keywords. Some PDF extractions render a
+# stylized/letter-spaced heading like "S K I L L S" or "S KILL S" as literal
+# spaced-out characters. _SECTION_HEADING_PATTERN can't catch that since it
+# expects the keyword contiguous at the start of the line, so as a second
+# check we strip ALL whitespace from a short line and compare it exactly
+# against these canonical forms.
+#
+# NOTE: bare "PROFESSIONAL", "TECHNICAL", "RELEVANT" are intentionally NOT
+# included here (or in _SECTION_HEADING_PATTERN above) as standalone tokens.
+# They're common ordinary words that show up as the first word of a wrapped
+# bullet-continuation line — e.g. "technical troubleshooting." from a bullet
+# that wrapped across two lines — and would get misclassified as a section
+# heading, incorrectly toggling the experience recorder off mid-job. Only
+# their compound forms (PROFESSIONAL EXPERIENCE, TECHNICAL SKILLS, etc.) are
+# distinctive enough to safely treat as real headings.
+_CANONICAL_HEADINGS = {
+    'EDUCATION', 'EXPERIENCE', 'EXPERIENCES', 'WORKEXPERIENCE', 'WORKEXPERIENCES',
+    'PROFESSIONALEXPERIENCE', 'PROFESSIONALEXPERIENCES', 'SKILLS', 'PROJECT', 'PROJECTS',
+    'CERTIFICATIONS', 'CERTIFICATION', 'CERTIFICATES', 'CERTIFICATE', 'SUMMARY', 'OBJECTIVE',
+    'TRAINING', 'WORKHISTORY', 'EMPLOYMENT',
+    'INTERNSHIP', 'ORGANIZATIONAL', 'ORGANIZATIONALEXPERIENCE', 'AWARDS', 'AWARD', 'HONORS',
+    'HONOR', 'ACTIVITIES', 'REFERENCES', 'REFERENCE', 'PUBLICATIONS', 'PUBLICATION', 'LANGUAGES', 'LANGUAGE',
+}
+
+# Which of the canonical/keyword forms above count as "this is paid work
+# experience" (vs. a non-experience heading like Education or Skills).
+_EXPERIENCE_TOKENS = {
+    'EXPERIENCE', 'EXPERIENCES', 'WORKEXPERIENCE', 'WORKEXPERIENCES',
+    'PROFESSIONALEXPERIENCE', 'PROFESSIONALEXPERIENCES', 'EMPLOYMENT', 'WORKHISTORY',
+    'INTERNSHIP',
+}
+
+# NOTE: "ORGANIZATIONAL" (as in "Organizational Experience") is intentionally
+# recognized as a heading here but deliberately left OUT of _EXPERIENCE_TOKENS.
+# Resumes use "Organizational Experience" to mean club/professional-society
+# membership, not paid employment — so it should turn the experience recorder
+# OFF like any other non-work heading, not get merged into years-of-experience
+# math alongside real jobs.
+
+_EXPERIENCE_KEYWORD_PATTERN = re.compile(
+    r'^(EXPERIENCES?|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|EMPLOYMENT|WORK\s+HISTORY|INTERNSHIP)\b',
+    re.IGNORECASE
+)
+
+# Case-SENSITIVE (no re.IGNORECASE) search for a heading keyword occurring in
+# literal ALL CAPS anywhere within a line. This exists to catch a specific PDF
+# extraction artifact: when a styled section header (rendered as a bold/caps
+# text box) visually overlaps the tail end of a preceding paragraph, the text
+# extractor can merge them onto one line, e.g. "Campaigns. WORK EXPERIENCE" or
+# "SUMMARY <lowercase paragraph text...>". In that case the keyword isn't at
+# the start of the line, so the anchored check above misses it entirely — and
+# if it's missed for every job heading, the experience section never gets
+# marked and the isolator falls back to returning the WHOLE resume (including
+# Education dates), wildly inflating years-of-experience.
+# Requiring literal uppercase is what keeps this safe: a casual, lowercase
+# mention like "hands-on experience running livestreams" in a summary
+# paragraph will never match, only a genuinely capitalized heading token will.
+_CAPS_HEADING_SEARCH = re.compile(
+    r'\b(EDUCATION|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|EXPERIENCES?|EMPLOYMENT|WORK\s+HISTORY'
+    r'|SKILLS|PROJECTS?|CERTIFICATIONS?|CERTIFICATES?|SUMMARY|OBJECTIVE'
+    r'|PROFESSIONAL\s+(?:SUMMARY|SKILLS|PROFILE)|TECHNICAL\s+SKILLS|RELEVANT\s+(?:COURSEWORK|EXPERIENCE|SKILLS|PROJECTS?)'
+    r'|ORGANIZATIONAL|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)\b'
+)
+# NOTE: bare "TRAINING" and bare "INTERNSHIP" are intentionally NOT included
+# above (unlike in _SECTION_HEADING_PATTERN, where they're safe because they
+# must be the line's very first word). Searched anywhere in a longer
+# ALL-CAPS line, they're too likely to be part of an ordinary job title
+# rather than a section heading — e.g. "ON-THE-JOB TRAINING" is a common
+# internship designation (OJT), not a section boundary, and would otherwise
+# get misclassified as one, incorrectly cutting off the experience section
+# right in the middle of a candidate's job history.
+
+def _classify_line(line_clean: str):
+    """Classify a (already-stripped) line as an 'experience' heading, an
+    'other' (non-experience) heading, or None if it's not a heading at all.
+
+    Tries three checks in order of specificity:
+      1. Anchored keyword at the start of the line (the normal case).
+      2. Whitespace-stripped exact match, for OCR artifacts like "S KILL S"
+         where a short heading gets letter-spaced.
+      3. A literal ALL-CAPS keyword occurring anywhere in a longer line, for
+         cases where a heading textbox visually merged with adjacent
+         paragraph text during PDF extraction (see _CAPS_HEADING_SEARCH).
+    """
+    m = _SECTION_HEADING_PATTERN.match(line_clean)
+    if m:
+        return 'experience' if _EXPERIENCE_KEYWORD_PATTERN.match(line_clean) else 'other'
+
+    if len(line_clean) <= 25:
+        compact = re.sub(r'\s+', '', line_clean).upper()
+        if compact in _CANONICAL_HEADINGS:
+            return 'experience' if compact in _EXPERIENCE_TOKENS else 'other'
+
+    if len(line_clean) > 15:
+        cm = _CAPS_HEADING_SEARCH.search(line_clean)
+        if cm:
+            token = re.sub(r'\s+', '', cm.group(1)).upper()
+            return 'experience' if token in _EXPERIENCE_TOKENS else 'other'
+
+    return None
+
+# Last-resort anchor for when the "WORK EXPERIENCE" / "SUMMARY" heading text
+# doesn't survive extraction AT ALL — not merged, not letter-spaced, just
+# genuinely gone (seen with OCR misreading a stylized/colored header bar
+# while plainer headings like EDUCATION extract fine right below it). In
+# that case there is no heading anywhere to turn the recorder on, so instead
+# we look for the shape of an actual job date range, e.g. "Oct 2024 - Present"
+# or "November 2023 to November 2025". This is deliberately a `search`
+# (not anchored to line start, and not requiring company text on the same
+# line) because some resume layouts put the company/title on one line and
+# the date range on the very next line by itself — requiring both on one
+# line would miss that shape entirely.
+_JOB_ENTRY_LINE = re.compile(
+    r'(?:[A-Za-z]{3,9}\.?\s+)?(?:19|20)\d{2}(?:-(?:0[1-9]|1[0-2]))?\s*(?:[-\u2013\u2014]|to)\s*'
+    r'(?:(?:[A-Za-z]{3,9}\.?\s+)?(?:19|20)\d{2}(?:-(?:0[1-9]|1[0-2]))?|Present|Current|Now|Ongoing)\b',
+    re.IGNORECASE
+)
+
+_EDU_LINE_SIGNAL = re.compile(
+    r'\b(bachelor|master|ph\.?d|associate\s+degree|diploma|elementary\s+school'
+    r'|high\s+school|senior\s+high|junior\s+high|college|university|degree'
+    r'|major\s+in|latin\s+honors?|barangay|brgy\.?)\b',
+    re.IGNORECASE
+)
+
+def _strip_education_lines(text: str) -> str:
+    """Remove lines that are clearly education content (degree/school
+    keywords), plus a small window of lines around each one, since the
+    actual date range for a school entry is usually on its own separate
+    line rather than the same line as the degree/school-name keyword.
+
+    This exists because some PDF layouts extract ALL section content before
+    ANY section heading labels (which cluster together separately elsewhere
+    in the raw text). When that happens, the "EDUCATION" heading that's
+    supposed to stop the experience recorder can appear in the extracted
+    text AFTER the actual education entries (school name, degree, dates)
+    rather than before them — so a school's date range gets swept into the
+    "experience" text and miscounted as work experience. A job bullet is
+    very unlikely to mention "Bachelor of Arts" or "Elementary School", so
+    filtering on this content is a safe, targeted way to catch it regardless
+    of where the section boundaries actually landed.
+    """
+    lines = text.splitlines()
+    excluded_idx = set()
+    for i, line in enumerate(lines):
+        if _EDU_LINE_SIGNAL.search(line):
+            for j in range(max(0, i - 2), min(len(lines), i + 3)):
+                excluded_idx.add(j)
+    return "\n".join(line for i, line in enumerate(lines) if i not in excluded_idx)
+
+def isolate_experience_section(resume_raw: str) -> str:
+    """Extracts only the text belonging to Experience/Employment sections.
+
+    Headings are recognized via _classify_line, which tries (in order): an
+    anchored keyword at the start of a line; a whitespace-stripped exact
+    match for letter-spaced OCR headings; and a case-sensitive ALL-CAPS
+    search anywhere in a line to catch headings that got merged with
+    adjacent paragraph text during PDF extraction. This intentionally avoids
+    failure modes seen on real resumes:
+      1. Scanning the whole raw text for a bare keyword like "EDUCATION"
+         with only a \\b boundary can false-positive on ordinary content —
+         e.g. a company name like "Origin Migration & Education Visa
+         Specialists" contains the standalone word "Education" and would
+         wrongly be treated as the start of the Education section,
+         truncating the experience section right in the middle of a job.
+      2. A generic "ALL CAPS + short line" heuristic (used in an earlier
+         version of this function) can't distinguish a real section heading
+         from a job-title subheading inside the experience section itself
+         (e.g. "LEGAL ASSISTANT", "HR OFFICER - SITE" are just as short,
+         all-caps, and digit-free as a real heading). That heuristic ended
+         up shutting off recording right after the first job title, wiping
+         out nearly the entire experience section.
+      3. Requiring the heading keyword strictly at position 0 misses cases
+         where a styled section-header textbox visually overlaps the tail of
+         a preceding paragraph in the PDF, merging onto one extracted line
+         like "Campaigns. WORK EXPERIENCE" — the anchored check alone would
+         never see this as a heading, the recorder would never turn on for
+         the entire job history, and the empty-result fallback below would
+         return the WHOLE resume (Education dates included), wildly
+         inflating years-of-experience.
+      4. Sometimes a heading can't anchor the section correctly at all —
+         either the heading text doesn't survive extraction (OCR misreads a
+         stylized/colored header bar into garbage while a plainer heading
+         like EDUCATION right below it extracts cleanly), or the heading
+         does extract but lands in the wrong place relative to the actual
+         job content (a layout that extracts company/dates/bullets in one
+         place and the heading + bare job titles somewhere else, so the
+         recorder turns on only after all the real dated content has
+         already gone by). Either way, no amount of heading-pattern-matching
+         finds usable content, so as a last resort we look for the *shape*
+         of an actual job date range instead (see _JOB_ENTRY_LINE) and
+         anchor the start of the experience section there.
+    """
+    lines = resume_raw.splitlines()
+    exp_text = []
+    in_exp_section = False
+    saw_experience_heading = False
+
+    for line in lines:
+        line_clean = line.strip()
+
+        cls = _classify_line(line_clean) if line_clean else None
+
+        if cls == 'experience':
+            in_exp_section = True
+            saw_experience_heading = True
+        elif cls == 'other':
+            in_exp_section = False
+
+        # If the recorder is on, save the text
+        if in_exp_section:
+            exp_text.append(line)
+
+    # Decide whether to trust the heading-based result above, or re-anchor
+    # using the shape of an actual job entry instead. Two situations call
+    # for the fallback:
+    #   (a) No 'experience' heading was found anywhere in the document at
+    #       all (heading text didn't survive extraction — see case 4 in the
+    #       docstring above).
+    #   (b) A heading WAS found, but the text captured under it contains no
+    #       usable (non-education) year/date at all. This happens when a
+    #       PDF's layout extracts the heading and bare job-title labels in
+    #       one place, but the actual company names, date ranges, and
+    #       bullets earlier in the raw text — meaning by the time the
+    #       recorder turns on at the heading, all the real dated content has
+    #       already gone by. The isolated result looks "successful"
+    #       (non-empty, has an experience heading) but is actually just a
+    #       list of job titles with zero usable dates — or, worse, the
+    #       *next* stop-heading (e.g. EDUCATION) is ALSO too late relative
+    #       to its own content, so what got captured is actually a stretch
+    #       of leaked education entries rather than real job dates. Checking
+    #       against the education-stripped text (not the raw captured text)
+    #       is what catches this second case — the raw text technically
+    #       "has a year" in it, just not one that belongs to a real job.
+    exp_text_has_dates = bool(re.search(r'\b(?:19|20)\d{2}\b', _strip_education_lines("\n".join(exp_text))))
+
+    if not saw_experience_heading or not exp_text_has_dates:
+        start_idx = None
+        for i, line in enumerate(lines):
+            if _JOB_ENTRY_LINE.search(line.strip()):
+                start_idx = i
+                break
+
+        if start_idx is not None:
+            # Include one line of leading context (typically the company
+            # name, when the date sits on its own line right below it).
+            start_idx = max(0, start_idx - 1)
+            candidate_exp_text = []
+            in_exp_section = True
+            for line in lines[start_idx:]:
+                line_clean = line.strip()
+                cls = _classify_line(line_clean) if line_clean else None
+                if cls == 'other':
+                    in_exp_section = False
+                if in_exp_section:
+                    candidate_exp_text.append(line)
+
+            # Only prefer this content-based result if it actually found
+            # usable (non-education) dates the heading-based pass missed.
+            # Otherwise keep whatever the heading-based pass produced (don't
+            # make things worse for resumes where the heading-based result
+            # was already correct but just happens to be date-free for some
+            # other reason).
+            if re.search(r'\b(?:19|20)\d{2}\b', _strip_education_lines("\n".join(candidate_exp_text))):
+                exp_text = candidate_exp_text
+
+    # Fallback: If we couldn't find any clear sections (weird formatting/bad OCR),
+    # return the whole resume so we don't accidentally score them a 0.
+    if not exp_text:
+        return resume_raw
+
+    return _strip_education_lines("\n".join(exp_text))
+
+def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
+    current_year = datetime.datetime.now().year
+    
+    # 1. ISOLATE THE TEXT: Only look at the Experience section! (education
+    # lines are already stripped out inside isolate_experience_section)
+    exp_section_text = isolate_experience_section(resume_raw)
+    text = exp_section_text.lower()
+    
+    end_kw = r'(?:current|present|now|ongoing|till\s+date|to\s+date)'
+
+    # Separator between the two years/keywords in a date range. Covers
+    # "-", en dash, em dash, and the word "to".
+    sep = r'\s*(?:[-\u2013\u2014]|to)\s*'
+    # Many resumes write ranges as "December 2025 - March 2026" rather than
+    # bare "2025 - 2026". A single month token (name or abbreviation) can sit
+    # right after the separator, before the second year/keyword — allow for it.
+    month_tok = r'(?:[A-Za-z]{3,9}\.?\s+)?'
+    # Some resumes (often from resume-builder/ATS templates) write dates as
+    # ISO year-month, e.g. "2025-02 - 2025-04" rather than "Feb 2025 - Apr
+    # 2025". The numeric month is glued directly to the year with a hyphen
+    # and no space, which — before this fix — was getting misread as the
+    # range separator itself: "2025" matched as a year, then the very next
+    # character "-02" got consumed as if it were the separator, but "02"
+    # isn't a valid 4-digit year, so the whole match failed right there,
+    # never reaching the real separator further along. This optional
+    # trailing group lets a year atomically absorb its own "-MM" suffix
+    # (01-12) before the regex looks for the actual range separator, so
+    # "2025-02 – 2025-04" now parses as (2025, 2025) instead of not
+    # matching at all.
+    iso_month_suffix = r'(?:-(?:0[1-9]|1[0-2]))?'
+
+    # 2. Find all ranges (now guaranteed to mostly be work history)
+    open_starts = [
+        int(y) for y in re.findall(
+            r'\b((?:19|20)\d{2})' + iso_month_suffix + sep + month_tok + end_kw, text, re.IGNORECASE)
+        if 1950 <= int(y) <= current_year
+    ]
+    
+    closed_pairs = [
+        (int(s), int(e))
+        for s, e in re.findall(
+            r'\b((?:19|20)\d{2})' + iso_month_suffix + sep + month_tok
+            + r'((?:19|20)\d{2})' + iso_month_suffix + r'\b', text)
+        if 1950 <= int(s) <= current_year and int(s) <= int(e) <= current_year + 1
+    ]
+
+    # Some entries (freelance/gig/contract work especially) list only a
+    # single bare year with no range at all, e.g. "...Minsan Studios 2023
+    # (Hybrid)" rather than "2023 - 2024". These never match either pattern
+    # above and were previously invisible to the calculation entirely. When
+    # a bare year is tagged with a work-arrangement qualifier like this, it's
+    # a strong, low-false-positive signal that it's a real (if imprecisely
+    # dated) job stint — count it as one year. This intentionally does NOT
+    # try to catch every bare year in the text (e.g. a year mentioned in a
+    # company name or an award), only ones with this specific qualifier
+    # pattern next to them.
+    standalone_years = [
+        int(y) for y in re.findall(
+            r'\b((?:19|20)\d{2})\s*\((?:hybrid|remote|freelance|contract|part[\s-]?time'
+            r'|full[\s-]?time|on[\s-]?site|temporary|seasonal|internship|consulting|gig)\)',
+            text, re.IGNORECASE)
+        if 1950 <= int(y) <= current_year
+    ]
+
+    # 3. Convert all to a standard list of [start, end] intervals
+    intervals = []
+    for s in open_starts:
+        intervals.append([s, current_year])
+    for s, e in closed_pairs:
+        intervals.append([s, e])
+    for y in standalone_years:
+        # A single-year stint with no explicit end date -> count as one year.
+        intervals.append([y, y + 1])
+
+    # 3b. MONTH-PRECISION FRACTIONAL CREDIT for stints that start and end
+    # within the SAME calendar year, e.g. "2025-02 - 2025-04" (Feb-Apr 2025)
+    # or "Aug 2021 - Aug 2021". The whole-year interval math above computes
+    # (end_year - start_year), which is always 0 for these — a short
+    # internship/gig gets literally zero credit even though it was real,
+    # dated work. This block finds any range where BOTH the start and end
+    # month are explicitly given, and where they land in the same year, and
+    # credits it as a fraction of a year based on the actual month span.
+    # Cross-year ranges are untouched here (they already get sensible whole-
+    # year credit above); this only fills the specific gap where whole-year
+    # math structurally can't produce anything but zero.
+    _month_tok_named = r'(?:(?P<{0}m>[A-Za-z]{{3,9}})\.?\s+)?(?P<{0}y>(?:19|20)\d{{2}})(?:-(?P<{0}iso>0[1-9]|1[0-2]))?'
+    _same_year_closed_re = re.compile(
+        r'\b' + _month_tok_named.format('s') + sep + _month_tok_named.format('e') + r'\b',
+        re.IGNORECASE
+    )
+    _same_year_open_re = re.compile(
+        r'\b' + _month_tok_named.format('s') + sep + end_kw,
+        re.IGNORECASE
+    )
+
+    def _resolve_month(name, iso):
+        if iso:
+            return int(iso)
+        if name:
+            return _MONTH_NAMES.get(name.lower().rstrip('.'))
+        return None
+
+    same_year_month_intervals = {}  # year -> list of [start_month, end_month]
+    current_month = datetime.datetime.now().month
+
+    for m in _same_year_closed_re.finditer(text):
+        try:
+            s_year, e_year = int(m.group('sy')), int(m.group('ey'))
+        except (TypeError, ValueError):
+            continue
+        if s_year != e_year or not (1950 <= s_year <= current_year):
+            continue
+        s_month = _resolve_month(m.group('sm'), m.group('siso'))
+        e_month = _resolve_month(m.group('em'), m.group('eiso'))
+        if s_month is None or e_month is None or e_month < s_month:
+            # Not enough info (or malformed) to safely credit a fraction —
+            # leave it at the existing 0 rather than guess.
+            continue
+        same_year_month_intervals.setdefault(s_year, []).append([s_month, e_month])
+
+    for m in _same_year_open_re.finditer(text):
+        try:
+            s_year = int(m.group('sy'))
+        except (TypeError, ValueError):
+            continue
+        if s_year != current_year:
+            continue  # a genuinely multi-year open range already gets credit above
+        s_month = _resolve_month(m.group('sm'), m.group('siso'))
+        if s_month is None or s_month > current_month:
+            continue
+        same_year_month_intervals.setdefault(s_year, []).append([s_month, current_month])
+
+    # 4. Merge overlapping WHOLE-YEAR intervals to handle concurrent jobs
+    # and gaps safely. Computed here (before the same-year fractional total
+    # below) because the same-year credit needs to know which years are
+    # already fully covered by a continuous multi-year job span, so it
+    # doesn't double-count time that's already accounted for.
+    merged = []
+    years_from_ranges = 0
+    if intervals:
+        intervals.sort(key=lambda x: x[0]) # Sort by start year
+        
+        merged = [intervals[0]]
+        for current in intervals[1:]:
+            prev = merged[-1]
+            if current[0] <= prev[1]:
+                # Overlapping jobs (e.g., freelance + full-time) -> merge them
+                merged[-1] = [prev[0], max(prev[1], current[1])]
+            else:
+                # Distinct job with a gap before it
+                merged.append(current)
+        
+        # Sum the total valid, non-overlapping durations
+        for s, e in merged:
+            years_from_ranges += (e - s)
+
+    def _year_covered_by_merged_range(year):
+        # True if this calendar year sits strictly inside an existing
+        # continuous whole-year job span (not just touching its edge) --
+        # meaning that year's employment is already counted above, so a
+        # same-year fractional stint within it would be double-counting.
+        return any(s <= year < e for s, e in merged)
+
+    # Merge same-year month intervals per year so overlapping/concurrent
+    # same-year stints don't get double-counted, then sum total months --
+    # skipping any year that's already covered by a continuous whole-year
+    # job span from the merge above.
+    total_same_year_months = 0
+    for year, ivs in same_year_month_intervals.items():
+        if _year_covered_by_merged_range(year):
+            continue
+        ivs.sort()
+        merged_months = [ivs[0]]
+        for cur in ivs[1:]:
+            if cur[0] <= merged_months[-1][1] + 1:
+                merged_months[-1][1] = max(merged_months[-1][1], cur[1])
+            else:
+                merged_months.append(cur)
+        for sm, em in merged_months:
+            total_same_year_months += (em - sm + 1)
+
+    years_from_same_year_months = round(total_same_year_months / 12.0, 2)
+
+
+
+    # 5. Explicit "N years" fallback (scans the whole text just in case)
+    no_age = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume_normalized)
+    explicit_raw = re.findall(r'(\d+)\+?\s*years?', no_age)
+    years_from_explicit = max(map(int, explicit_raw)) if explicit_raw else 0
+
+    # Combine the whole-year total (cross-year ranges, open ranges,
+    # standalone-year entries) with the month-precision fractional credit
+    # for same-year stints computed above. years_precise keeps the decimal
+    # detail (useful for debugging/the sandbox); years is the rounded whole
+    # number used everywhere else, preserving the existing integer contract.
+    years_precise = round(years_from_ranges + years_from_same_year_months, 2)
+
+    years_exp = years_precise if years_precise > 0 else years_from_explicit
+    years_exp = round(years_exp)
+    years_exp = min(years_exp, 40) # Cap at 40 to prevent regex hallucination bugs
+
+    if years_exp == 0 and 'project' in resume_normalized:
+        years_exp = 1
+
+    return {
+        'years':                    years_exp,
+        'years_precise':            years_precise,
+        'explicit_raw':             explicit_raw,
+        'open_ranges':              [(y, current_year) for y in open_starts],
+        'closed_ranges':            closed_pairs,
+        'standalone_years':         standalone_years,
+        'years_from_ranges':        years_from_ranges,
+        'years_from_same_year_months': years_from_same_year_months,
+        'years_from_explicit':      years_from_explicit,
+    }
 
 # ---------------------------------------------------------------------------
 # EXPERIENCE EXTRACTION
@@ -618,255 +1116,49 @@ def _extract_explicit_years(text: str):
             if num and 0 < num <= 60:
                 per_role_values.append(num)
 
-    # A "summary" claim ("8 years of experience") is a single headline
-    # statement, not one-per-role — take the largest such claim, not a sum.
     if summary_values:
-        return max(summary_values)
+        return max(set(summary_values))
 
-    # Per-role durations are additive by construction (one match per
-    # distinct "(N years)" occurrence) — sum them; do NOT dedupe by value,
-    # since two genuinely different jobs can legitimately both say "3 years".
     if per_role_values:
-        return min(sum(per_role_values), 50.0)
+        total = sum(set(per_role_values))
+        return min(total, 50.0)
 
     return 0.0
 
 
-# ---------------------------------------------------------------------------
-# EXPERIENCE-SECTION ISOLATION  (only read tenure from Experience/Employment
-# blocks — not Education, Certifications, References, etc.)
-# ---------------------------------------------------------------------------
-_EXPERIENCE_KEYWORDS_RE = re.compile(
-    r'\b(EXPERIENCE|EMPLOYMENT|WORK\s+HISTORY|CAREER\s+HISTORY|INTERNSHIPS?)\b',
-    re.IGNORECASE,
-)
-
-def _is_heading_line(line: str) -> bool:
-    """Uses the same heading heuristic as _HEADING_RE (defined further down
-    in this module) so section boundaries here agree with what the
-    presentation scorer already treats as a section break."""
-    stripped = line.strip()
-    if not stripped:
-        return False
-    return bool(
-        _HEADING_RE.match(stripped) or
-        (stripped.isupper() and 2 <= len(stripped.split()) <= 5
-         and not re.search(r'[\d@]', stripped))
-    )
-
-def _is_experience_heading(line: str) -> bool:
-    """
-    True if `line` reads as a heading (per _is_heading_line — ALL CAPS,
-    2-5 words, no digits/@) AND its text contains an employment/experience
-    keyword anywhere in it. Deliberately broader than a fixed phrase list:
-    catches "IT EMPLOYMENT", "CUSTOMER SERVICE EMPLOYMENT", "WORK
-    EXPERIENCE", "CAREER HISTORY", "INTERNSHIPS", etc. — any heading
-    fundamentally about work history, regardless of a qualifying prefix
-    or suffix word. Does NOT match "PROFESSIONAL DEVELOPMENT" or
-    "PROFESSIONAL MEMBERSHIPS" — "PROFESSIONAL" alone isn't a keyword —
-    so those stay correctly excluded from the experience section.
-    """
-    stripped = line.strip()
-    if not stripped:
-        return False
-    return _is_heading_line(stripped) and bool(_EXPERIENCE_KEYWORDS_RE.search(stripped))
-
-def _extract_experience_section(text_raw: str) -> tuple:
-    """
-    Isolates Experience/Employment/Internship blocks so date-range and
-    duration parsing only ever reads years from work history — not
-    Education graduation years, Certification dates, References, or a
-    phone number/zip code that happens to sit near the word "years".
-
-    Handles multiple experience-labelled sections (e.g. a "Professional
-    Experience" block plus a separate later "Internships" block) by
-    collecting all of them, each terminated by the next *non*-experience
-    heading (Education, Skills, Certifications, ...) or end of document.
-
-    Falls back to the full text when no experience heading is found at
-    all, so a plain-text resume with no section headers still gets
-    scored instead of returning a false zero.
-    """
-    lines = text_raw.splitlines()
-    collected = []
-    in_section = False
-    found_any = False
-
-    for line in lines:
-        stripped = line.strip()
-
-        if stripped and _is_experience_heading(stripped):
-            in_section = True
-            found_any = True
-            continue
-
-        if stripped and in_section and _is_heading_line(stripped) \
-                and not _is_experience_heading(stripped):
-            in_section = False
-            continue
-
-        if in_section:
-            collected.append(line)
-
-    if not found_any:
-        return text_raw, False
-
-    return '\n'.join(collected), True
-
-
-# ---------------------------------------------------------------------------
-# ENTRY SEGMENTATION + JD-RELEVANCE SCORING (TF-IDF + skill-hit only)
-# ---------------------------------------------------------------------------
-_BLANK_LINE_SPLIT_RE = re.compile(r'\n\s*\n+')
-
-def _split_into_entries(section_text: str) -> list:
-    """
-    Heuristically splits an experience section into individual job/role
-    blocks on blank lines — the one formatting convention resumes reliably
-    share between distinct entries. Returns [] when the section can't be
-    meaningfully split (e.g. extraction collapsed everything into one
-    blob — the same failure ScreeningController's `looks_like_single_blob`
-    diagnostic flags), so callers fall back to scoring the whole section
-    as a unit instead of mis-splitting mid-sentence.
-    """
-    if not section_text.strip():
-        return []
-    raw = _BLANK_LINE_SPLIT_RE.split(section_text.strip())
-    entries = [p.strip() for p in raw if len(p.strip()) > 15]
-    return entries if len(entries) > 1 else []
-
-
-RELEVANCE_THRESHOLD = 0.08
-"""
-Minimum TF-IDF cosine similarity (job vs. entry, shared vocabulary fit
-across job + all entries) for an experience entry to count as JD-relevant
-by wording alone. Entry text is short — a few bullets — so these scores
-run lower than the full-document combined_similarity elsewhere in this
-file. Starting point to tune against real resumes, not a validated cutoff.
-An entry can also qualify via skill_hit below regardless of this threshold.
-
-Deliberately TF-IDF-only (no semantic/sentence-embedding scoring here):
-score_resume() already runs one model.encode() call per applicant for the
-whole-document combined_similarity. Adding a second encode() call per
-entry would roughly double the single most expensive operation in the
-pipeline, inside ScreeningController::evaluateApplicants(), which already
-calls /analyze once per applicant, sequentially, for every resume in a
-batch evaluation. TF-IDF + a direct skill match is a cheap, "good enough"
-coarse gate for which job entries are on-topic; the precise similarity
-score for the *whole* resume is still computed once, elsewhere.
-"""
-
-def _score_entries_relevance(entries_raw: list, job_norm: str, job_skills: list) -> list:
-    """
-    Scores every entry against the JD in a single batched TF-IDF fit
-    (shared vocabulary across job + all entries) instead of re-fitting per
-    entry, plus a direct skill-keyword check. No sentence-embedding call —
-    see RELEVANCE_THRESHOLD docstring above for why.
-    """
-    entries_norm = [normalize_text(e) for e in entries_raw]
-
-    tfidf_scores = [0.0] * len(entries_norm)
-    try:
-        vec = TfidfVectorizer(stop_words='english', ngram_range=(1, 2),
-                               min_df=1, sublinear_tf=True)
-        mat = vec.fit_transform([job_norm] + entries_norm)
-        sims = cosine_similarity(mat[0:1], mat[1:])[0]
-        tfidf_scores = [round(float(s), 3) for s in sims]
-    except Exception:
-        pass
-
-    results = []
-    for i, entry_norm in enumerate(entries_norm):
-        skill_hit = any(_skill_in_text(s, entry_norm) for s in job_skills)
-        results.append({'tfidf': tfidf_scores[i], 'skill_hit': skill_hit})
-    return results
-
-
-def _extract_years_from_text(text: str) -> dict:
-    """Date-ranges-first, explicit-statement-fallback tenure extraction
-    over an arbitrary chunk of text — reused for both the unfiltered
-    whole-section pass and the relevance-filtered subset of entries."""
-    date_range_years, intervals = _extract_date_range_years(text)
-    if intervals:
-        return {'years': date_range_years, 'method': 'date_ranges', 'intervals': intervals}
-
-    explicit_years = _extract_explicit_years(text)
-    if explicit_years > 0:
-        return {'years': explicit_years, 'method': 'explicit_statement', 'intervals': []}
-
-    return {'years': 0.0, 'method': 'none', 'intervals': []}
-
-
-def extract_years_experience(resume_text: str, job_text: str = '') -> dict:
+def extract_years_experience(resume_text: str) -> dict:
     """
     Returns:
         {
-          'years_experience':             float,  # JD-relevant years
-          'years_experience_unfiltered':  float,
-          'method':                       'date_ranges' | 'explicit_statement' | 'none',
-          'intervals':                    [(date, date), ...],
-          'scoped_to_experience_section': bool,
-          'relevance_filtered':           bool,
-          'relevance_filter_empty':       bool,
-          'entries': [ { 'preview': str, 'tfidf': float,
-                          'skill_hit': bool, 'included': bool }, ... ],
+          'years_experience': float,
+          'method': 'date_ranges' | 'explicit_statement' | 'none',
+          'intervals': [(date, date), ...]   # only for 'date_ranges'
         }
+
+    No "'project' in resume -> 1 year" guessing: "project" appears on
+    nearly every resume and says nothing about tenure. Undetectable cases
+    return 0 with method='none' rather than a fabricated number.
     """
-    section_text, section_found = _extract_experience_section(resume_text)
-    unfiltered = _extract_years_from_text(section_text)
-
-    job_norm = normalize_text(job_text) if job_text and job_text.strip() else ''
-    entries_raw = _split_into_entries(section_text) if job_norm else []
-
-    if not job_norm or not entries_raw:
+    date_range_years, intervals = _extract_date_range_years(resume_text)
+    if intervals:
         return {
-            'years_experience':             unfiltered['years'],
-            'years_experience_unfiltered':  unfiltered['years'],
-            'method':                       unfiltered['method'],
-            'intervals':                    unfiltered['intervals'],
-            'scoped_to_experience_section': section_found,
-            'relevance_filtered':           False,
-            'relevance_filter_empty':       False,
-            'entries':                      [],
+            'years_experience': date_range_years,
+            'method': 'date_ranges',
+            'intervals': intervals,
         }
 
-    job_skills = extract_skills_from_job(job_norm)
-    scored = _score_entries_relevance(entries_raw, job_norm, job_skills)
-
-    entries_debug, relevant_texts = [], []
-    for text, s in zip(entries_raw, scored):
-        included = s['tfidf'] >= RELEVANCE_THRESHOLD or s['skill_hit']
-        entries_debug.append({
-            'preview':   text[:120].replace('\n', ' '),
-            'tfidf':     s['tfidf'],
-            'skill_hit': s['skill_hit'],
-            'included':  included,
-        })
-        if included:
-            relevant_texts.append(text)
-
-    if not relevant_texts:
+    explicit_years = _extract_explicit_years(resume_text)
+    if explicit_years > 0:
         return {
-            'years_experience':             unfiltered['years'],
-            'years_experience_unfiltered':  unfiltered['years'],
-            'method':                       unfiltered['method'],
-            'intervals':                    unfiltered['intervals'],
-            'scoped_to_experience_section': section_found,
-            'relevance_filtered':           False,
-            'relevance_filter_empty':       True,
-            'entries':                      entries_debug,
+            'years_experience': explicit_years,
+            'method': 'explicit_statement',
+            'intervals': [],
         }
 
-    filtered = _extract_years_from_text('\n\n'.join(relevant_texts))
     return {
-        'years_experience':             filtered['years'],
-        'years_experience_unfiltered':  unfiltered['years'],
-        'method':                       filtered['method'],
-        'intervals':                    filtered['intervals'],
-        'scoped_to_experience_section': section_found,
-        'relevance_filtered':           True,
-        'relevance_filter_empty':       False,
-        'entries':                      entries_debug,
+        'years_experience': 0.0,
+        'method': 'none',
+        'intervals': [],
     }
 
 
@@ -917,8 +1209,10 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
 
-    exp_result = extract_years_experience(resume_raw, job_raw)
-    years_exp = exp_result['years_experience']
+    _resume_for_exp = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume)
+    _exp          = _extract_experience_years(resume_raw, resume)
+    years_exp     = _exp['years']
+    exp_years_raw = _exp['explicit_raw']   # kept for exp_years_detected field below
 
     education_score, education_level = 0, 'none detected'
     if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
@@ -956,11 +1250,8 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'skill_gap':             skill_gap,
         'job_skills_extracted':  job_skills_extracted,
         # Experience
-        'years_experience':              exp_result['years_experience'],
-        'years_experience_unfiltered':   exp_result['years_experience_unfiltered'],
-        'experience_method':             exp_result['method'],
-        'experience_relevance_filtered': exp_result['relevance_filtered'],
-        'experience_entries':            exp_result['entries'],
+        'years_experience':      years_exp,
+        'exp_years_detected':    list(map(int, exp_years_raw)) if exp_years_raw else [],
         # Education / Cert
         'education_score':       education_score,
         'certification_score':   cert_score,
@@ -979,9 +1270,9 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'concise_score':         layout['concise_score'],
         'organization_score':    layout['organization_score'],
         'layout_feedback':       layout['layout_feedback'],
-        # Extraction-quality signal — lets callers / debug UI tell when
-        # presentation scoring ran on text that likely lost its original
-        # line structure during extraction (OCR, etc).
+        # Extraction-quality signal (new) — lets callers / debug UI tell
+        # when presentation scoring ran on text that likely lost its
+        # original line structure during extraction (OCR, etc).
         'structure_confidence':  layout['structure_confidence'],
         'avg_words_per_line':    layout['avg_words_per_line'],
         # Normalized text (useful for debug)
