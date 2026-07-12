@@ -7,10 +7,25 @@ use Illuminate\Support\Facades\Auth;
 use App\Models\User;
 use App\Models\Preference;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\DB;
 
 class AuthController extends Controller
 {
-    public function showLogin() { return view('auth.login'); }
+    public function showLogin(Request $request)
+    {
+        if (Auth::check()) {
+            $userId = Auth::id();
+
+            // Destroy all sessions for this user (all devices/tabs)
+            DB::table('sessions')->where('user_id', $userId)->delete();
+
+            Auth::logout();
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+        }
+
+        return view('auth.login');
+    }
     public function showRegister() { return view('auth.register'); }
 
     public function login(Request $request)

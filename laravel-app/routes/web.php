@@ -89,3 +89,5 @@ Route::middleware(['auth'])->prefix('testing')->name('testing.')->group(function
     Route::post('/mass-upload',         [TestingController::class, 'massUpload'])->name('mass-upload.store');
     Route::delete('/mass-upload/clear/{jobId}', [TestingController::class, 'clearTestApplications'])->name('mass-upload.clear');
 });
+
+Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
