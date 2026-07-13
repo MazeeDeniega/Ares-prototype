@@ -203,11 +203,36 @@ async function upload() {
   });
 
   try {
+    // FIXED: added 'Accept: application/json'. Without it, Laravel's
+    // Request::expectsJson() returns false (native fetch() doesn't set
+    // X-Requested-With, and the Accept header didn't ask for JSON either),
+    // so ANY server-side failure -- a validation error, an expired CSRF
+    // token (419), an unhandled exception (500), a missing route (404) --
+    // gets rendered as Laravel's normal HTML error page instead of JSON.
+    // res.json() then chokes on the leading "<html>" with exactly the
+    // "Unexpected token '<'" error this was built to fix. clearTest()
+    // below already had this header; upload() didn't.
     const res = await fetch('{{ route("testing.mass-upload.store") }}', {
       method: 'POST',
-      headers: { 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content },
+      headers: {
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+        'Accept': 'application/json',
+      },
       body: fd,
     });
+
+    // Even with the Accept header above, some failure modes still won't be
+    // valid JSON (e.g. a raw 502/504 from a reverse proxy timing out before
+    // Laravel ever runs, or a fatal PHP error with display_errors on and no
+    // JSON exception handler). Guard res.json() itself so those show a real
+    // status code + body preview instead of the opaque "Unexpected token
+    // '<'" message.
+    if (!res.ok) {
+      let bodyPreview = '';
+      try { bodyPreview = (await res.text()).slice(0, 200); } catch (_) {}
+      throw new Error(`HTTP ${res.status} ${res.statusText} — ${bodyPreview || 'no body'}`);
+    }
+
     const d = await res.json();
 
     if (!d.success) {
