@@ -15,6 +15,13 @@ import DashboardCandidates from './pages/DashboardCandidates';
 import DashboardEvaluate from './pages/DashboardEvaluate';
 import Results from './pages/Results';
 
+window.addEventListener('pageshow', (event) => {
+  if (event.persisted) {
+    // Page was restored from bfcache — force a fresh request
+    window.location.reload();
+  }
+});
+
 createRoot(document.getElementById('app')).render(
   <BrowserRouter>
     <Routes>
