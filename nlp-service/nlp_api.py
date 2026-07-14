@@ -124,20 +124,11 @@ SKILLS_TAXONOMY = {
         "problem solving", "analytical", "documentation", "stakeholder",
         "requirement", "business analysis",
     ],
-    # NEW: office/productivity + no-code tools. These are extremely common
-    # in admin, registrar, HR, and ops job descriptions, but were previously
-    # entirely absent from the taxonomy -- meaning a JD asking for "Excel"
-    # or "Google Workspace" would never even register the skill as
-    # relevant, let alone check whether a resume has it.
     "office_productivity": [
         "excel", "microsoft excel", "google workspace", "google sheets",
         "google docs", "google drive", "airtable", "notion", "zapier",
         "fillout", "sis", "student information system",
     ],
-    # NEW: registrar / academic-admin specific terms. Added for JDs like
-    # "registrar operations, student records, school administration,
-    # enrollment services..." which previously had almost nothing in the
-    # taxonomy to match against beyond generic "database"/"documentation".
     "education_admin": [
         "registrar", "registrar operations", "student records",
         "school administration", "enrollment services", "enrollment",
@@ -147,10 +138,6 @@ SKILLS_TAXONOMY = {
         "office administration", "information management",
         "ched", "deped", "tesda", "accreditation", "compliance", "business administration",
     ],
-    # NEW: HR / recruitment / career-development / alumni-relations terms.
-    # Added for JDs like "recruitment, human resources... career readiness
-    # programs... alumni affairs and engagement... database management,
-    # research and critical thinking skills."
     "career_hr": [
         "recruitment", "human resources", "career development",
         "graduate placement", "employability", "career readiness",
@@ -160,6 +147,14 @@ SKILLS_TAXONOMY = {
         "research", "critical thinking", "relationship building",
         "marketing", "communications", "multimedia", "game development",
         "digital arts", "traditional arts",
+        "talent acquisition", "campus recruitment", "campus recruiter",
+        "candidate sourcing", "sourcing", "screening", "onboarding",
+        "applicant tracking system", "job fair", "career fair",
+        "employer branding", "hiring", "interview coordination",
+        "background check", "reference verification", "employee records",
+        "compensation management", "organizational development",
+        "stakeholder engagement", "data storytelling",
+        "memorandum of agreement",
     ],
     "civic_community_service": [
         "civic education", "civic responsibility", "civic engagement",
@@ -267,6 +262,12 @@ ALIAS_MAP = {
     "human resource":             "human resources",
     "public admin":               "public administration",
     "drrm":                       "disaster risk reduction and management",
+    "relationship-building":     "relationship building",
+    "job placement":             "graduate placement",
+    "career placement":          "graduate placement",
+    "moa":                       "memorandum of agreement",
+    "ats":                       "applicant tracking system",
+    "hr":                        "human resources",
 }
 
 _ALIAS_REGEXES = [
@@ -1465,7 +1466,7 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         education_score, education_level = 0.5, 'associate'
 
     cert_score, cert_level = 0, 'none detected'
-    if 'certification' in resume or 'certified' in resume:
+    if re.search(r'\bcertificat\w*\b|\blicens\w*\b|\bregistered\s+(?:professional|psychometrician|nurse|counselor|criminologist|social\s+worker)\b|\bboard\s+passer\b', resume):
         cert_score, cert_level = 1.0, 'certified'
     elif 'training' in resume:
         cert_score, cert_level = 0.5, 'training'
