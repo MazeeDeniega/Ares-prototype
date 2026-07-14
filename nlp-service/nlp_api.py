@@ -15,6 +15,7 @@ app.register_blueprint(debug_bp)
 # MODELS
 # ---------------------------------------------------------------------------
 model = SentenceTransformer('all-MiniLM-L6-v2')
+model.max_seq_length = 384
 
 try:
     nlp = spacy.load("en_core_web_trf")
@@ -154,7 +155,8 @@ SKILLS_TAXONOMY = {
         "background check", "reference verification", "employee records",
         "compensation management", "organizational development",
         "stakeholder engagement", "data storytelling",
-        "memorandum of agreement",
+        "memorandum of agreement", "background check", "reference verification", 
+        "employee 201 file", "recruitment platform", "applicant tracking",
     ],
     "civic_community_service": [
         "civic education", "civic responsibility", "civic engagement",
@@ -268,6 +270,8 @@ ALIAS_MAP = {
     "moa":                       "memorandum of agreement",
     "ats":                       "applicant tracking system",
     "hr":                        "human resources",
+    "201 file":                  "employee 201 file",
+    "employee records":          "employee 201 file",
 }
 
 _ALIAS_REGEXES = [
@@ -1426,9 +1430,11 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
 
     tfidf_score    = compute_tfidf_similarity(resume, job)
     semantic_score = compute_semantic_similarity(resume, job)
-    combined       = round(
+    text_similarity = round(
         (tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3
     )
+
+    combined = round(text_similarity * 0.7 + skill_coverage * 0.3, 3) if has_job else 0.0
 
     tfidf_contrib = round(tfidf_score    * kw  / total_blend, 4)
     sem_contrib   = round(semantic_score * sem / total_blend, 4)
@@ -1451,6 +1457,11 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     matched_skills       = match_skills(resume, job)
     job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
     skill_gap            = [s for s in job_skills_extracted if s not in resume]
+
+    skill_coverage = (
+        len(matched_skills) / len(job_skills_extracted)
+        if job_skills_extracted else 0.0
+    )
 
     _resume_for_exp = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume)
     _exp          = _extract_experience_years(resume_raw, resume)
