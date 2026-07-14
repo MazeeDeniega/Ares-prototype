@@ -106,9 +106,27 @@ function FinalScoreCell({ row, pref }) {
 
 function DetailsCell({ row }) {
   const { skills, experience, highest_education, date_available } = row.original;
+  const skillList = Array.isArray(skills) ? skills : [];
+  const MAX_SHOWN = 4;
+  const shown = skillList.slice(0, MAX_SHOWN);
+  const extra = skillList.length - shown.length;
+
   return (
-    <div style={{ fontSize: "0.87rem" }}>
-      <div><strong>Skills:</strong> {Array.isArray(skills) && skills.length ? skills.join(", ") : "—"}</div>
+    <div style={{ fontSize: "0.87rem", textAlign: "left" }}>
+      <div
+        className="details-skills-row"
+        title={skillList.length ? skillList.join(", ") : undefined}
+      >
+        <strong>Skills:</strong>{" "}
+        {skillList.length ? (
+          <>
+            {shown.join(", ")}
+            {extra > 0 && <span className="details-skills-more">+{extra} more</span>}
+          </>
+        ) : (
+          "—"
+        )}
+      </div>
       <div><strong>Experience:</strong> {experience} yr(s)</div>
       <div><strong>Education:</strong> {highest_education ?? "N/A"}</div>
       <div><strong>Available:</strong> {date_available ?? "N/A"}</div>
