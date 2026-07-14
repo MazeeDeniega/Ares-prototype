@@ -145,7 +145,7 @@ SKILLS_TAXONOMY = {
         "academic documentation", "curriculum", "graduation requirements",
         "transcripts", "transfer credentials", "enrollment verification",
         "office administration", "information management",
-        "ched", "deped", "tesda", "accreditation", "compliance",
+        "ched", "deped", "tesda", "accreditation", "compliance", "business administration",
     ],
     # NEW: HR / recruitment / career-development / alumni-relations terms.
     # Added for JDs like "recruitment, human resources... career readiness
@@ -160,6 +160,30 @@ SKILLS_TAXONOMY = {
         "research", "critical thinking", "relationship building",
         "marketing", "communications", "multimedia", "game development",
         "digital arts", "traditional arts",
+    ],
+    "civic_community_service": [
+        "civic education", "civic responsibility", "civic engagement",
+        "nation building", "nation-building", "volunteerism", "volunteer work",
+        "community development", "community engagement", "community-based learning",
+        "youth development", "peace education", "human rights",
+        "environmental sustainability", "environmental awareness",
+        "environmental science", "government service",
+        "non-government organization", "ngo", "public service",
+        "social work", "sociology", "criminology", "political science",
+        "public administration", "public health", "nursing",
+    ],
+    "disaster_risk_management": [
+        "disaster risk reduction and management", "drrm", "disaster preparedness",
+        "disaster response", "emergency response", "emergency management",
+        "basic life support", "triage", "distress tolerance",
+        "risk reduction", "hazard mitigation", "crisis management",
+    ],
+    "instruction_pedagogy": [
+        "lesson plan", "lesson planning", "curriculum development",
+        "classroom management", "instruction", "teaching", "facilitation",
+        "mentoring", "coaching", "student-centered learning",
+        "learner-centered", "faculty development", "academic instruction",
+        "training facilitation",
     ],
 }
 
@@ -181,7 +205,7 @@ WORD_BOUNDARY_SKILLS = {
     # NEW: institutional acronyms (CHED, DepEd, TESDA) and 'hr' -- short
     # enough that a bare substring check risks false positives (e.g. "hr"
     # inside "chr"/other words), so they get \b-anchored matching too.
-    'ched', 'deped', 'tesda', 'hr',
+    'ched', 'deped', 'tesda', 'hr', 'drrm', 'ngo'
 }
 
 SKILLS_FLAT = [skill for skills in SKILLS_TAXONOMY.values() for skill in skills]
@@ -241,6 +265,8 @@ ALIAS_MAP = {
     "human resources management": "human resources",
     "hrm":                        "human resources",
     "human resource":             "human resources",
+    "public admin":               "public administration",
+    "drrm":                       "disaster risk reduction and management",
 }
 
 _ALIAS_REGEXES = [
