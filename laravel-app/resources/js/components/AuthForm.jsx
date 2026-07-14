@@ -32,6 +32,7 @@ export default function AuthForm({
             <span className="auth-branding__logo-text">ARES</span> */}
             <img src={aresLogo} alt='Logo' draggable={false} />
           </div>
+          <p className='auth-branding__name'>Automated Resume Evaluation System</p>
         </div>
       </aside>
 
@@ -82,8 +83,7 @@ export default function AuthForm({
             <div className="auth-footer auth-footer--desktop">{footer}</div>
           )}
 
-          {/* Mobile alt-action buttons */}
-          {secondaryBtns.length > 0 && (
+          {/* {secondaryBtns.length > 0 && (
             <div className="auth-btn-row">
               {secondaryBtns.map((action) => (
                 <a
@@ -95,7 +95,7 @@ export default function AuthForm({
                 </a>
               ))}
             </div>
-          )}
+          )} */}
         </div>
       </main>
     </div>

@@ -106,6 +106,14 @@ tr td {
   text-align: center;
 }
 
+.table-top-bar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  background: var(--color-primary);
+}
+
 /* ----------------------------------------------------------------
    JobListTable / RankingTable container + plain tables
    (used when not wrapped in .themed-table-wrapper)
@@ -113,7 +121,8 @@ tr td {
 
 .JobListTable, .RankingTable {
   width: 100%;
-  padding: var(--space-lg) var(--space-xl);
+  /* padding: 50px 10px 50px 10px; */
+  padding: 0px 0px var(--space-xl) var(--space-lg);
 }
 
 /* .JobListTable table, */
@@ -136,11 +145,22 @@ tr td {
 }
 
 .JobListTable .evaluate-btn {
-  background: var(--color-primary);
   border: none;
   padding: var(--space-sm) var(--space-md);
   font-weight: 600;
   border-radius: var(--radius-sm);
+}
+
+.evaluate-btn {
+  background: #fff;
+  color: var(--color-primary-dark);
+  border: 1px solid #b3c7ee;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
 .JobListTable .job-title,
