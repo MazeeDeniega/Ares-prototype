@@ -21,11 +21,50 @@ try:
 except Exception:
     nlp = spacy.load("en_core_web_sm")
 
+_ADDRESS_FOLLOWING_RE = re.compile(
+    r'^\s*,\s*[A-Za-z].{0,60}?(city|province|barangay|brgy)\b', re.IGNORECASE | re.DOTALL
+)
+
 def extract_name(text: str) -> str:
+    """
+    Returns the candidate's name via spaCy PERSON NER, with one safeguard:
+    a PERSON entity is rejected if it looks like it's actually part of a
+    street address rather than the candidate's own name -- e.g. "12 Felix
+    Manalo, Pinagkaisahan, Quezon City" is a real Quezon City street
+    address ("Felix Manalo" being a very common Philippine street name,
+    named after the Iglesia ni Cristo founder), but spaCy's NER confidently
+    tags "Felix Manalo" as PERSON since it's also a well-known real name.
+    Without this check, a resume whose actual name text got lost/garbled
+    during PDF extraction (leaving no other PERSON entity in the document)
+    would silently return this address fragment as candidate_name instead
+    of failing more visibly.
+
+    Two independent signals catch this, either being sufficient:
+      1. A house/lot number immediately precedes the entity (e.g. "12 ").
+      2. A comma immediately follows the entity, then a barangay/city-
+         shaped fragment within the next ~40 characters (e.g.
+         ", Pinagkaisahan, Quezon City").
+    """
     doc = nlp(text)
+
+    candidates = []
     for ent in doc.ents:
-        if ent.label_ == "PERSON":
-            return ent.text
+        if ent.label_ != "PERSON":
+            continue
+        preceding = text[max(0, ent.start_char - 6):ent.start_char]
+        following = text[ent.end_char:ent.end_char + 60]
+        looks_like_address = (
+            re.search(r'\d\s*$', preceding) or
+            _ADDRESS_FOLLOWING_RE.search(following)
+        )
+        if looks_like_address:
+            continue
+        candidates.append((ent.start_char, ent.text))
+
+    if candidates:
+        candidates.sort(key=lambda c: c[0])
+        return candidates[0][1]
+
     lines = text.splitlines()
     for line in lines:
         if len(line.strip()) > 2:
@@ -85,12 +124,64 @@ SKILLS_TAXONOMY = {
         "problem solving", "analytical", "documentation", "stakeholder",
         "requirement", "business analysis",
     ],
+    # NEW: office/productivity + no-code tools. These are extremely common
+    # in admin, registrar, HR, and ops job descriptions, but were previously
+    # entirely absent from the taxonomy -- meaning a JD asking for "Excel"
+    # or "Google Workspace" would never even register the skill as
+    # relevant, let alone check whether a resume has it.
+    "office_productivity": [
+        "excel", "microsoft excel", "google workspace", "google sheets",
+        "google docs", "google drive", "airtable", "notion", "zapier",
+        "fillout", "sis", "student information system",
+    ],
+    # NEW: registrar / academic-admin specific terms. Added for JDs like
+    # "registrar operations, student records, school administration,
+    # enrollment services..." which previously had almost nothing in the
+    # taxonomy to match against beyond generic "database"/"documentation".
+    "education_admin": [
+        "registrar", "registrar operations", "student records",
+        "school administration", "enrollment services", "enrollment",
+        "document processing", "academic support", "academic records",
+        "academic documentation", "curriculum", "graduation requirements",
+        "transcripts", "transfer credentials", "enrollment verification",
+        "office administration", "information management",
+        "ched", "deped", "tesda", "accreditation", "compliance",
+    ],
+    # NEW: HR / recruitment / career-development / alumni-relations terms.
+    # Added for JDs like "recruitment, human resources... career readiness
+    # programs... alumni affairs and engagement... database management,
+    # research and critical thinking skills."
+    "career_hr": [
+        "recruitment", "human resources", "career development",
+        "graduate placement", "employability", "career readiness",
+        "career coaching", "mock interview", "alumni affairs",
+        "alumni engagement", "alumni relations", "job matching",
+        "labor market research", "exit interview", "database management",
+        "research", "critical thinking", "relationship building",
+        "marketing", "communications", "multimedia", "game development",
+        "digital arts", "traditional arts",
+    ],
 }
 
 WORD_BOUNDARY_SKILLS = {
     'c', 'r', 'go', 'ui', 'ux', 'ai', 'ml', 'ui', 'api',
     'sql', 'css', 'git', 'aws', 'gcp', 'tdd', 'oop', 'mvc',
     'etl', 'nlp', 'dns', 'vpn', 'web', 'php', 'vue', 'c#',
+    # FIXED: 'perl' is 4 chars, so it previously fell through to the raw
+    # substring branch of _skill_in_text (only skills <=3 chars or already
+    # listed here get word-boundary matching). That meant "perl" matched as
+    # a substring of ordinary words like "properly" ("pro-PERL-y"), producing
+    # a false "required skill" that then also showed up in skill_gap for
+    # candidates who never claimed to know Perl. Adding it here forces a
+    # \bperl\b match instead.
+    'perl',
+    # 'sis' is already <=3 chars so it gets boundary matching automatically,
+    # but listed here too for clarity/documentation purposes.
+    'sis',
+    # NEW: institutional acronyms (CHED, DepEd, TESDA) and 'hr' -- short
+    # enough that a bare substring check risks false positives (e.g. "hr"
+    # inside "chr"/other words), so they get \b-anchored matching too.
+    'ched', 'deped', 'tesda', 'hr',
 }
 
 SKILLS_FLAT = [skill for skills in SKILLS_TAXONOMY.values() for skill in skills]
@@ -138,6 +229,18 @@ ALIAS_MAP = {
     "business intelligence":     "data analysis power bi tableau",
     "databases":                 "database",
     "networks":                  "network",
+    # NEW: common ways these office/productivity tools get written.
+    "ms excel":                  "excel",
+    "excel spreadsheets":        "excel",
+    "gsuite":                    "google workspace",
+    "g suite":                   "google workspace",
+    "google apps":               "google workspace",
+    "student information systems": "sis",
+    "student information system": "sis",
+    # NEW: common variants seen in HR/registrar JDs.
+    "human resources management": "human resources",
+    "hrm":                        "human resources",
+    "human resource":             "human resources",
 }
 
 _ALIAS_REGEXES = [
@@ -376,7 +479,7 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
     organization_score = 0
 
     heading_pattern = re.compile(
-        r'^(EDUCATION|EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
+        r'^(EDUCATION|EXPERIENCE|JOB\s+EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
         r'|TRAINING|WORK HISTORY|EMPLOYMENT|PROFESSIONAL|TECHNICAL|RELEVANT'
         r'|INTERNSHIP|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)',
         re.IGNORECASE
@@ -475,7 +578,7 @@ def classify_layout(text_raw: str, page_count=None, presentation_weights=None) -
     }
 
 _SECTION_HEADING_PATTERN = re.compile(
-    r'^(EDUCATION|EXPERIENCES?|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|SKILLS|PROJECTS?'
+    r'^(EDUCATION|EXPERIENCES?|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|JOB\s+EXPERIENCES?|SKILLS|PROJECTS?'
     r'|CERTIFICATIONS?|CERTIFICATES?|SUMMARY|OBJECTIVE'
     r'|TRAINING|WORK\s+HISTORY|EMPLOYMENT'
     r'|PROFESSIONAL\s+(?:SUMMARY|SKILLS|PROFILE)|TECHNICAL\s+SKILLS'
@@ -501,7 +604,17 @@ _SECTION_HEADING_PATTERN = re.compile(
 # distinctive enough to safely treat as real headings.
 _CANONICAL_HEADINGS = {
     'EDUCATION', 'EXPERIENCE', 'EXPERIENCES', 'WORKEXPERIENCE', 'WORKEXPERIENCES',
-    'PROFESSIONALEXPERIENCE', 'PROFESSIONALEXPERIENCES', 'SKILLS', 'PROJECT', 'PROJECTS',
+    'PROFESSIONALEXPERIENCE', 'PROFESSIONALEXPERIENCES',
+    # FIXED: "JOB EXPERIENCE" is a very common heading variant (seen on the
+    # Dominique Lee resume) that previously matched NONE of the heading
+    # checks: it doesn't start with a recognized keyword (starts with
+    # "JOB"), and wasn't in this canonical set either. That silently failed
+    # saw_experience_heading, which threw the isolator into its last-resort
+    # date-shape fallback — which then anchored on the candidate's
+    # EDUCATION date range instead of her actual jobs, merging years of
+    # school/extracurriculars into "years of experience".
+    'JOBEXPERIENCE', 'JOBEXPERIENCES',
+    'SKILLS', 'PROJECT', 'PROJECTS',
     'CERTIFICATIONS', 'CERTIFICATION', 'CERTIFICATES', 'CERTIFICATE', 'SUMMARY', 'OBJECTIVE',
     'TRAINING', 'WORKHISTORY', 'EMPLOYMENT',
     'INTERNSHIP', 'ORGANIZATIONAL', 'ORGANIZATIONALEXPERIENCE', 'AWARDS', 'AWARD', 'HONORS',
@@ -512,7 +625,8 @@ _CANONICAL_HEADINGS = {
 # experience" (vs. a non-experience heading like Education or Skills).
 _EXPERIENCE_TOKENS = {
     'EXPERIENCE', 'EXPERIENCES', 'WORKEXPERIENCE', 'WORKEXPERIENCES',
-    'PROFESSIONALEXPERIENCE', 'PROFESSIONALEXPERIENCES', 'EMPLOYMENT', 'WORKHISTORY',
+    'PROFESSIONALEXPERIENCE', 'PROFESSIONALEXPERIENCES', 'JOBEXPERIENCE', 'JOBEXPERIENCES',
+    'EMPLOYMENT', 'WORKHISTORY',
     'INTERNSHIP',
 }
 
@@ -524,7 +638,7 @@ _EXPERIENCE_TOKENS = {
 # math alongside real jobs.
 
 _EXPERIENCE_KEYWORD_PATTERN = re.compile(
-    r'^(EXPERIENCES?|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|EMPLOYMENT|WORK\s+HISTORY|INTERNSHIP)\b',
+    r'^(EXPERIENCES?|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|JOB\s+EXPERIENCES?|EMPLOYMENT|WORK\s+HISTORY|INTERNSHIP)\b',
     re.IGNORECASE
 )
 
@@ -542,7 +656,7 @@ _EXPERIENCE_KEYWORD_PATTERN = re.compile(
 # mention like "hands-on experience running livestreams" in a summary
 # paragraph will never match, only a genuinely capitalized heading token will.
 _CAPS_HEADING_SEARCH = re.compile(
-    r'\b(EDUCATION|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|EXPERIENCES?|EMPLOYMENT|WORK\s+HISTORY'
+    r'\b(EDUCATION|WORK\s+EXPERIENCES?|PROFESSIONAL\s+EXPERIENCES?|JOB\s+EXPERIENCES?|EXPERIENCES?|EMPLOYMENT|WORK\s+HISTORY'
     r'|SKILLS|PROJECTS?|CERTIFICATIONS?|CERTIFICATES?|SUMMARY|OBJECTIVE'
     r'|PROFESSIONAL\s+(?:SUMMARY|SKILLS|PROFILE)|TECHNICAL\s+SKILLS|RELEVANT\s+(?:COURSEWORK|EXPERIENCE|SKILLS|PROJECTS?)'
     r'|ORGANIZATIONAL|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)\b'
@@ -603,7 +717,7 @@ _JOB_ENTRY_LINE = re.compile(
 )
 
 _EDU_LINE_SIGNAL = re.compile(
-    r'\b(bachelor|master|ph\.?d|associate\s+degree|diploma|elementary\s+school'
+    r'\b(bachelor|master|ph\.?d|associate\s+degree|associate\s+in|diploma|elementary\s+school'
     r'|high\s+school|senior\s+high|junior\s+high|college|university|degree'
     r'|major\s+in|latin\s+honors?|barangay|brgy\.?)\b',
     re.IGNORECASE
@@ -629,8 +743,33 @@ def _strip_education_lines(text: str) -> str:
     lines = text.splitlines()
     excluded_idx = set()
     for i, line in enumerate(lines):
+        # FIXED: some resumes format job entries as "Title | Company", e.g.
+        # "Clerical Aide | Aklan State University" or "Administrative
+        # Assistant | College of Computer Studies...". The employer name
+        # containing "university"/"college" is NOT the candidate's own
+        # education -- it's just where they worked -- but _EDU_LINE_SIGNAL
+        # can't tell the difference and was flagging these lines, deleting
+        # a +/-2 line window that usually swallowed the real job's date
+        # line sitting right next to it (e.g. "July 2019 - April 2023"
+        # directly above the title line). A pipe character reliably marks
+        # this "Title | Company" job-entry shape in this resume style, so
+        # skip the strip trigger entirely for any line containing one.
+        if '|' in line:
+            continue
         if _EDU_LINE_SIGNAL.search(line):
-            for j in range(max(0, i - 2), min(len(lines), i + 3)):
+            # FIXED: originally a symmetric +/-2 window. In badly scrambled
+            # two-column extractions, a degree keyword can sit several
+            # lines BEFORE its own date token with unrelated content in
+            # between -- e.g. "Associate in Computer Science\nJamiatul
+            # Philippines Al-Islamia\n-\nSchool Registrar\n2010-2012" puts
+            # the date 4 lines after the keyword. A +/-2 window missed it,
+            # leaving the degree's date range uncaught and miscounted as
+            # work experience. Extending the forward reach to 4 (keeping
+            # lookback at 2, since a degree keyword rarely needs to reach
+            # backward that far to find its own date) catches this without
+            # widening the backward direction where false-positive risk
+            # (deleting real job content) is higher.
+            for j in range(max(0, i - 2), min(len(lines), i + 5)):
                 excluded_idx.add(j)
     return "\n".join(line for i, line in enumerate(lines) if i not in excluded_idx)
 
@@ -724,6 +863,29 @@ def isolate_experience_section(resume_raw: str) -> str:
         start_idx = None
         for i, line in enumerate(lines):
             if _JOB_ENTRY_LINE.search(line.strip()):
+                # FIXED: a date-shape match can land on an EDUCATION entry
+                # instead of a job -- e.g. a scrambled two-column extraction
+                # can break every real job's "2019 - 2023" into three
+                # separate lines (year / dash / year) with unrelated
+                # content between them, while a degree date like
+                # "2021-2023" survives as one clean compact token right
+                # next to "Master of Arts in Education". Without this
+                # check, the anchor would lock onto that degree date and
+                # the isolator would report a school's date range as "work
+                # experience". Look at a small window around the match for
+                # education-signal words before accepting it as the start
+                # of real job content.
+                # Look back further than forward: in scrambled two-column
+                # extractions, the degree-signal keyword (e.g. "Associate
+                # in Computer Science") often sits several lines BEFORE the
+                # compact date token itself (e.g. "...Associate in Computer
+                # Science\nJamiatul Philippines Al-Islamia\n-\nSchool
+                # Registrar\n2010-2012" -- 3 lines separate the keyword from
+                # the date), while forward context rarely needs as much
+                # slack. A narrow +/-2 window missed this case entirely.
+                window = "\n".join(lines[max(0, i - 4):i + 3])
+                if _EDU_LINE_SIGNAL.search(window):
+                    continue
                 start_idx = i
                 break
 
@@ -751,9 +913,15 @@ def isolate_experience_section(resume_raw: str) -> str:
                 exp_text = candidate_exp_text
 
     # Fallback: If we couldn't find any clear sections (weird formatting/bad OCR),
-    # return the whole resume so we don't accidentally score them a 0.
+    # return the whole resume so we don't accidentally score them a 0 --
+    # but still strip education lines first. Previously this path bypassed
+    # _strip_education_lines() entirely (it was only applied on the normal
+    # return below), so a badly-scrambled resume where NO job dates could
+    # be isolated at all would count every degree's date range (Bachelor's,
+    # Master's, Associate's) as "years of experience" instead of falling
+    # through to a safer 0/explicit-statement result.
     if not exp_text:
-        return resume_raw
+        return _strip_education_lines(resume_raw)
 
     return _strip_education_lines("\n".join(exp_text))
 
@@ -774,6 +942,14 @@ def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
     # bare "2025 - 2026". A single month token (name or abbreviation) can sit
     # right after the separator, before the second year/keyword — allow for it.
     month_tok = r'(?:[A-Za-z]{3,9}\.?\s+)?'
+    # FIXED: dates written as "July 18, 2019 – April 15, 2023" (a day-of-
+    # month number between the month name and the year) previously broke
+    # every closed-range match. month_tok would consume "April ", then the
+    # regex demanded a year immediately -- but the actual next text is
+    # "15, 2023", so the whole match failed right there. This optional
+    # token absorbs a day number (with optional st/nd/rd/th suffix and a
+    # trailing comma) between the month and the year.
+    day_tok = r'(?:\d{1,2}(?:st|nd|rd|th)?,?\s+)?'
     # Some resumes (often from resume-builder/ATS templates) write dates as
     # ISO year-month, e.g. "2025-02 - 2025-04" rather than "Feb 2025 - Apr
     # 2025". The numeric month is glued directly to the year with a hyphen
@@ -791,14 +967,14 @@ def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
     # 2. Find all ranges (now guaranteed to mostly be work history)
     open_starts = [
         int(y) for y in re.findall(
-            r'\b((?:19|20)\d{2})' + iso_month_suffix + sep + month_tok + end_kw, text, re.IGNORECASE)
+            r'\b((?:19|20)\d{2})' + iso_month_suffix + sep + month_tok + day_tok + end_kw, text, re.IGNORECASE)
         if 1950 <= int(y) <= current_year
     ]
     
     closed_pairs = [
         (int(s), int(e))
         for s, e in re.findall(
-            r'\b((?:19|20)\d{2})' + iso_month_suffix + sep + month_tok
+            r'\b((?:19|20)\d{2})' + iso_month_suffix + sep + month_tok + day_tok
             + r'((?:19|20)\d{2})' + iso_month_suffix + r'\b', text)
         if 1950 <= int(s) <= current_year and int(s) <= int(e) <= current_year + 1
     ]
@@ -842,7 +1018,7 @@ def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
     # Cross-year ranges are untouched here (they already get sensible whole-
     # year credit above); this only fills the specific gap where whole-year
     # math structurally can't produce anything but zero.
-    _month_tok_named = r'(?:(?P<{0}m>[A-Za-z]{{3,9}})\.?\s+)?(?P<{0}y>(?:19|20)\d{{2}})(?:-(?P<{0}iso>0[1-9]|1[0-2]))?'
+    _month_tok_named = r'(?:(?P<{0}m>[A-Za-z]{{3,9}})\.?\s+)?(?:\d{{1,2}}(?:st|nd|rd|th)?,?\s+)?(?P<{0}y>(?:19|20)\d{{2}})(?:-(?P<{0}iso>0[1-9]|1[0-2]))?'
     _same_year_closed_re = re.compile(
         r'\b' + _month_tok_named.format('s') + sep + _month_tok_named.format('e') + r'\b',
         re.IGNORECASE
@@ -946,6 +1122,25 @@ def _extract_experience_years(resume_raw: str, resume_normalized: str) -> dict:
     no_age = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume_normalized)
     explicit_raw = re.findall(r'(\d+)\+?\s*years?', no_age)
     years_from_explicit = max(map(int, explicit_raw)) if explicit_raw else 0
+
+    # FIXED: "over eight years of work experience" was previously invisible
+    # to this fallback entirely, since \d+ only matches digits, not spelled-
+    # out numbers. This matters most for exactly the cases that need a
+    # fallback: badly-OCR'd/scrambled resumes where no job date range could
+    # be isolated at all, and a summary line spelling out tenure in words is
+    # the only remaining signal. Requires "experience" within a few words
+    # (like _SUMMARY_YEARS_RE elsewhere) so a stray "seven days" or similar
+    # doesn't get mistaken for a tenure claim.
+    _word_num_pattern = '|'.join(_WORD_NUMBERS.keys())
+    explicit_word_raw = re.findall(
+        r'\b(' + _word_num_pattern + r')\+?\s*years?\s*(?:of\s+)?(?:\w+\s+){0,3}?experience\b',
+        no_age, re.IGNORECASE
+    )
+    if explicit_word_raw:
+        years_from_explicit = max(
+            years_from_explicit,
+            max(_WORD_NUMBERS[w.lower()] for w in explicit_word_raw)
+        )
 
     # Combine the whole-year total (cross-year ranges, open ranges,
     # standalone-year entries) with the month-precision fractional credit
@@ -1165,6 +1360,27 @@ def extract_years_experience(resume_text: str) -> dict:
 # ---------------------------------------------------------------------------
 # SHARED CORE SCORING  (used by both /analyze and debug_routes)
 # ---------------------------------------------------------------------------
+
+# FIXED: "AB Psychology" is the Philippine convention for a Bachelor's degree
+# (Latin "Artium Baccalaureus" — the letters reversed from the US "BA"). The
+# original bachelor's regex only recognized "ba"/"b.a."/"bachelor", so a
+# genuine bachelor's degree written as "AB" scored education_level as "none
+# detected", silently zeroing out 25% of qualifications_score.
+#
+# Bare "ab" is too ambiguous to match on its own (e.g. "A/B testing", "Plan
+# AB", initials) so this is scoped to the shape an actual degree line takes:
+# "ab" as the first word of a line, with "university" or "college" appearing
+# later on that same line — matching patterns like "AB Psychology, Ateneo de
+# Manila University" without matching stray "AB" mentions elsewhere in the
+# document.
+_AB_DEGREE_LINE = re.compile(r'^\s*ab\b.*\b(university|college)\b', re.IGNORECASE)
+
+def _has_bachelor_degree(resume_normalized: str, resume_raw: str) -> bool:
+    if re.search(r"\bbachelor'?s?\b|\bb\.?s\.?\b|\bb\.?a\.?\b|\bbachelor of\b", resume_normalized):
+        return True
+    return any(_AB_DEGREE_LINE.match(line.strip()) for line in resume_raw.splitlines())
+
+
 def score_resume(resume_raw: str, job_raw: str, page_count,
                  kw: int = 40, sem: int = 60,
                  presentation_weights: dict = None) -> dict:
@@ -1217,7 +1433,7 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
     education_score, education_level = 0, 'none detected'
     if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
         education_score, education_level = 1.0, 'master'
-    elif re.search(r"\bbachelor'?s?\b|\bb\.?s\.?\b|\bb\.?a\.?\b|\bbachelor of\b", resume):
+    elif _has_bachelor_degree(resume, resume_raw):
         education_score, education_level = 0.7, 'bachelor'
     elif re.search(r"\bassociate'?s?\b|\bassociate of\b|\bassociate degree\b", resume):
         education_score, education_level = 0.5, 'associate'
@@ -1304,7 +1520,7 @@ _INFORMAL_MARKERS = [
 ]
 
 _HEADING_RE = re.compile(
-    r'^(EDUCATION|EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
+    r'^(EDUCATION|EXPERIENCE|JOB\s+EXPERIENCE|SKILLS|PROJECTS?|CERTIFICATIONS?|SUMMARY|OBJECTIVE'
     r'|TRAINING|WORK HISTORY|EMPLOYMENT|PROFESSIONAL|TECHNICAL|RELEVANT'
     r'|INTERNSHIP|AWARDS?|HONORS?|ACTIVITIES|REFERENCES?|PUBLICATIONS?|LANGUAGES?)',
     re.IGNORECASE,
