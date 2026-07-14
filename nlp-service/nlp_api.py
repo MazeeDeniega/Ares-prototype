@@ -1434,6 +1434,15 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         (tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3
     )
 
+    matched_skills       = match_skills(resume, job)
+    job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
+    skill_gap            = [s for s in job_skills_extracted if s not in resume]
+
+    skill_coverage = (
+        len(matched_skills) / len(job_skills_extracted)
+        if job_skills_extracted else 0.0
+    )
+
     combined = round(text_similarity * 0.7 + skill_coverage * 0.3, 3) if has_job else 0.0
 
     tfidf_contrib = round(tfidf_score    * kw  / total_blend, 4)
@@ -1453,15 +1462,6 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         'resume_word_count': len(resume.split()),
         'job_word_count':    len(job.split()) if has_job else 0,
     }
-
-    matched_skills       = match_skills(resume, job)
-    job_skills_extracted = extract_skills_from_job(job) if job.strip() else []
-    skill_gap            = [s for s in job_skills_extracted if s not in resume]
-
-    skill_coverage = (
-        len(matched_skills) / len(job_skills_extracted)
-        if job_skills_extracted else 0.0
-    )
 
     _resume_for_exp = re.sub(r'\b\d+\s+years?\s+(?:old|of\s+age)\b', '', resume)
     _exp          = _extract_experience_years(resume_raw, resume)
