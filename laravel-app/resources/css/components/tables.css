@@ -153,6 +153,21 @@ tr td {
   text-overflow: ellipsis;
 }
 
+.details-skills-row {
+  max-width: 260px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.details-skills-more {
+  color: #2563eb;
+  font-weight: 600;
+  margin-left: 4px;
+  white-space: nowrap;
+}
+
 /* ----------------------------------------------------------------
    Ranking page — preference summary bar
    ---------------------------------------------------------------- */
