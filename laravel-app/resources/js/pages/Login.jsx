@@ -14,11 +14,6 @@ export default function Login() {
   });
   const [error, setError] = useState('');
 
-  // Reverts input#password back to type="password" if DevTools is used
-  // to change it. NOTE: this is a client-side deterrent only — it does
-  // NOT prevent someone from reading the raw value via the console
-  // (e.g. document.querySelector('#password').value), so it should not
-  // be treated as an actual security fix.
   useEffect(() => {
     const passwordInput = document.getElementById('password');
     if (!passwordInput) return;
