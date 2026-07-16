@@ -84,7 +84,7 @@ margin-top: 12px;
 }
 
 .table-heading th {
-background-color: var(--color-primary);
+background-color: var(--color-bg-light);
 padding: var(--space-sm) var(--space-md);
 text-align: center;
 font-size: var(--text-base);

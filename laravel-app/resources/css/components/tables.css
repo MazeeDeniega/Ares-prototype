@@ -85,7 +85,7 @@ table {
 }
 
 th {
-  background: var(--color-primary);
+  background: var(--color-bg-light);
   text-align: center;
   color: var(--text-dark);
   padding: var(--space-md) var(--space-sm);
@@ -139,7 +139,7 @@ tr td {
 }
 
 .JobListTable thead th {
-  background: var(--color-primary);
+  background: var(--color-bg-light);
   text-align: center;
   color: var(--text-dark);
 }
