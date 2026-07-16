@@ -111,6 +111,7 @@ tr td {
   align-items: flex-start;
   justify-content: space-between;
   padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  margin: 0 0 var(--space-md) 0;
   background: var(--color-primary);
 }
 
@@ -212,7 +213,7 @@ tr td {
   cursor: pointer;
 }
 
-.edit-pref-btn-ranking:hover {
+.edit-pref-btn-ranking:hover, .evaluate-btn:hover {
   background: var(--color-primary-hover);
   border-color: #93c5fd;
   color: var(--color-text-white);
