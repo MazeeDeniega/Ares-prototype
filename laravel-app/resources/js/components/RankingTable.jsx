@@ -213,8 +213,8 @@ function RankingTable({
 
   return (
     <div className="RankingTable">
-      <div className="container">
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "12px" }}>
+      <div>
+        <div className="table-top-bar">
           <h1 className="job-title" style={{ margin: 0 }}>Ranking Results - {jobTitle}</h1>
           <button onClick={onEditPreferences} className="edit-pref-btn-ranking">
             Edit Preferences

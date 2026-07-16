@@ -2,15 +2,16 @@
 /* display: flex; */
 width: 100%;
 flex-direction: column;
-padding: 28px 32px;
+padding: 0px 0px var(--space-md) var(--space-lg);
 }
 
 /* ── Page header: title + New Job button ── */
 .rec-page-header {
-display: flex;
-align-items: center;
-justify-content: space-between;
-margin-bottom: 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  background: var(--color-primary);
 }
 
 .rec-page-title {
@@ -60,14 +61,15 @@ border: 2px solid var(--color-primary-hover);
 
 /* ── Add Job button ── */
 .add-job-btn {
-border-radius: var(--radius-sm);
-border: none;
-background-color: var(--color-primary);
-padding: 8px 16px;
-font-size: var(--text-sm);
-font-weight: 500;
-cursor: pointer;
-transition: background 0.15s;
+  background: #fff;
+  color: var(--color-primary-dark);
+  border: 1px solid #b3c7ee;
+  border-radius: 8px;
+  padding: 8px 20px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s;
 }
 
 .add-job-btn:hover {

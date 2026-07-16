@@ -58,15 +58,8 @@ function JobListTable({
 
   return (
     <div className="JobListTable">
-      <div className="container">
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "16px",
-          }}
-        >
+      <div>
+        <div className="table-top-bar">
           <h1 className="job-title">
             {jobTitle} ({candidateCount})
           </h1>
