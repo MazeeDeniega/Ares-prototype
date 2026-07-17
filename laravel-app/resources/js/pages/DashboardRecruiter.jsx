@@ -112,7 +112,7 @@ export default function DashboardRecruiter() {
                       onClick={() => (window.location.href = `/screening/${job.id}`)}
                     >
                       <td>{job.title}</td>
-                      <td className="table-job-desc"><a href={`/jobs/${job.id}`}>{stripHtml(job.description)}</a></td>
+                      <td className="table-job-desc">{stripHtml(job.description)}</td>
                       <td style={{ textAlign: "center" }}>
                         {job.applications_count ?? job.applications?.length ?? 0}
                       </td>
