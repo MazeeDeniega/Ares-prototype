@@ -63,7 +63,17 @@ function JobListTable({
           <h1 className="job-title">
             {jobTitle} ({candidateCount})
           </h1>
-          <button className="evaluate-btn" onClick={onEvaluate}>
+          <button className="evaluate-btn" 
+            onClick={onEvaluate}
+            disabled={evaluating}
+            style={ evaluating ? 
+              { cursor: "not-allowed",
+                color: "#64748b",
+                backgroundColor: "white",
+                fontStyle: "italic"
+              } : {
+                cursor: "pointer"
+              }}>
             {evaluating ? "Evaluating…" : "Evaluate"}
           </button>
         </div>

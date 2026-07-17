@@ -85,7 +85,7 @@ table {
 }
 
 th {
-  background: var(--color-primary);
+  background: var(--color-bg-light);
   text-align: center;
   color: var(--text-dark);
   padding: var(--space-md) var(--space-sm);
@@ -97,9 +97,8 @@ tr td {
   border-bottom: 1px solid var(--color-primary-light);
   font-size: var(--text-base);
   max-width: 400px;
-  white-space: nowrap;
-  /* overflow: hidden; */
-  text-overflow: ellipsis;
+  word-wrap: break-word;
+  overflow-wrap: break-word;
 }
 
 .candidates-row {
@@ -111,6 +110,7 @@ tr td {
   align-items: flex-start;
   justify-content: space-between;
   padding: var(--space-xl) var(--space-xl) var(--space-lg);
+  margin: 0 0 var(--space-md) 0;
   background: var(--color-primary);
 }
 
@@ -139,7 +139,7 @@ tr td {
 }
 
 .JobListTable thead th {
-  background: var(--color-primary);
+  background: var(--color-bg-light);
   text-align: center;
   color: var(--text-dark);
 }
@@ -212,7 +212,7 @@ tr td {
   cursor: pointer;
 }
 
-.edit-pref-btn-ranking:hover {
+.edit-pref-btn-ranking:hover, .evaluate-btn:hover {
   background: var(--color-primary-hover);
   border-color: #93c5fd;
   color: var(--color-text-white);
