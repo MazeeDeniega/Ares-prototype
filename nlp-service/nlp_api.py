@@ -5,6 +5,14 @@ from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 from sentence_transformers import SentenceTransformer
 import spacy
+import os
+import logging
+from dotenv import load_dotenv
+load_dotenv()
+
+from llm_extractor import llm_extract_and_score
+
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
@@ -1538,6 +1546,86 @@ def score_resume(resume_raw: str, job_raw: str, page_count,
         },
     }
 
+def score_resume_llm(resume_raw: str, job_raw: str, page_count,
+                      kw: int = 40, sem: int = 60,
+                      presentation_weights: dict = None) -> dict:
+    """
+    Returns the same response shape /analyze already sends to Laravel.
+    Falls back to the existing regex/TF-IDF logic if the LLM call fails.
+    """
+    layout = classify_layout(resume_raw, page_count, presentation_weights or {})
+
+    llm_result = llm_extract_and_score(resume_raw, job_raw)
+
+    if not llm_result["success"]:
+        logger.warning("LLM scoring failed (%s), falling back to regex/TF-IDF path",
+                        llm_result.get("error"))
+
+        resume = normalize_text(resume_raw)
+        job    = normalize_text(job_raw)
+        total_blend = (kw + sem) or 100
+        tfidf_score    = compute_tfidf_similarity(resume, job)
+        semantic_score = compute_semantic_similarity(resume, job)
+        combined = round((tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3)
+        matched = match_skills(resume, job)
+
+        years = re.findall(r'(\d+)\s+years?', resume)
+        years_exp = max(map(int, years)) if years else 0
+        if "project" in resume and years_exp == 0:
+            years_exp = 1
+
+        education_score = 0
+        if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
+            education_score = 1.0
+        elif re.search(r"\bbachelor'?s?\b|\bb\.?s\.?\b|\bb\.?a\.?\b|\bbachelor of\b", resume):
+            education_score = 0.7
+        elif re.search(r"\bassociate'?s?\b|\bassociate of\b|\bassociate degree\b", resume):
+            education_score = 0.5
+
+        cert_score = 0
+        if 'certification' in resume or 'certified' in resume: cert_score = 1.0
+        elif 'training' in resume: cert_score = 0.5
+
+        return {
+            "matched_skills":       matched,
+            "years_experience":     years_exp,
+            "tfidf_similarity":     tfidf_score,
+            "semantic_similarity":  semantic_score,
+            "combined_similarity":  combined,
+            "education_score":      education_score,
+            "certification_score":  cert_score,
+            "presentation_score":   layout["presentation_score"],
+            "formatting_score":     layout["formatting_score"],
+            "language_score":       layout["language_score"],
+            "concise_score":        layout["concise_score"],
+            "organization_score":   layout["organization_score"],
+            "layout_feedback":      layout["layout_feedback"],
+            "_llm_fallback_reason": llm_result.get("error"),
+        }
+
+    d = llm_result["data"]
+    education_map = {"none": 0, "associate": 0.5, "bachelor": 0.7, "master": 1.0, "doctorate": 1.0}
+    education_score = education_map.get(d["education_level"], 0)
+    cert_score = 1.0 if d.get("certification_present") else 0.0
+    years_exp = min(d.get("years_experience", 0), 40)
+
+    return {
+        "candidate_name":       d["candidate_name"],
+        "matched_skills":       d["matched_skills"],
+        "skill_gap":            d["skill_gap"],
+        "years_experience":     years_exp,
+        "tfidf_similarity":     0.0,
+        "semantic_similarity":  0.0,
+        "combined_similarity":  d["job_fit_score"],
+        "education_score":      education_score,
+        "certification_score":  cert_score,
+        "presentation_score":   layout["presentation_score"],
+        "formatting_score":     layout["formatting_score"],
+        "language_score":       layout["language_score"],
+        "concise_score":        layout["concise_score"],
+        "organization_score":   layout["organization_score"],
+        "layout_feedback":      {**layout["layout_feedback"], "llm": d.get("presentation_feedback", [])},
+    }
 
 # ---------------------------------------------------------------------------
 # SHARED DEBUG METADATA  (document-level stats for the debug panel)
@@ -1622,17 +1710,65 @@ def analyze():
 
     resume_raw = data.get('resume', '')
     job_raw    = data.get('job', '')
-    page_count = data.get('page_count', None)
-    kw         = int(data.get('keyword_weight',  40))
-    sem        = int(data.get('semantic_weight', 60))
-    pres_w     = data.get('presentation_weights', {})
 
-    result = score_resume(resume_raw, job_raw, page_count, kw, sem, pres_w)
+    kw  = int(data.get('keyword_weight',  40))
+    sem = int(data.get('semantic_weight', 60))
+    page_count           = data.get('page_count', None)
+    presentation_weights = data.get('presentation_weights', {})
 
-    # Strip internal-only key before sending to Laravel
-    result.pop('_meta', None)
+    use_llm = os.environ.get('USE_LLM_SCORING', 'false').lower() == 'true'
+    if use_llm:
+        result = score_resume_llm(resume_raw, job_raw, page_count, kw, sem, presentation_weights)
+        return jsonify(result)
 
-    return jsonify(result)
+    # --- existing regex/TF-IDF path, unchanged ---
+    resume = normalize_text(resume_raw)
+    job    = normalize_text(job_raw)
+
+    total_blend = (kw + sem) or 100
+
+    tfidf_score    = compute_tfidf_similarity(resume, job)
+    semantic_score = compute_semantic_similarity(resume, job)
+    combined_similarity = round(
+        (tfidf_score * kw / total_blend) + (semantic_score * sem / total_blend), 3
+    )
+
+    matched_skills = match_skills(resume, job)
+
+    years     = re.findall(r'(\d+)\s+years?', resume)
+    years_exp = max(map(int, years)) if years else 0
+    if "project" in resume and years_exp == 0:
+        years_exp = 1
+
+    education_score = 0
+    if re.search(r"\bmaster'?s?\b|\bmaster of\b|\bm\.s\.c\b|\bm\.sc\b", resume):
+        education_score = 1.0
+    elif re.search(r"\bbachelor'?s?\b|\bb\.?s\.?\b|\bb\.?a\.?\b|\bbachelor of\b", resume):
+        education_score = 0.7
+    elif re.search(r"\bassociate'?s?\b|\bassociate of\b|\bassociate degree\b", resume):
+        education_score = 0.5
+
+    cert_score = 0
+    if 'certification' in resume or 'certified' in resume: cert_score = 1.0
+    elif 'training' in resume:                              cert_score = 0.5
+
+    layout_data = classify_layout(resume_raw, page_count, presentation_weights)
+
+    return jsonify({
+        "matched_skills":      matched_skills,
+        "years_experience":    years_exp,
+        "tfidf_similarity":    tfidf_score,
+        "semantic_similarity": semantic_score,
+        "combined_similarity": combined_similarity,
+        "education_score":     education_score,
+        "certification_score": cert_score,
+        "presentation_score":  layout_data["presentation_score"],
+        "formatting_score":    layout_data["formatting_score"],
+        "language_score":      layout_data["language_score"],
+        "concise_score":       layout_data["concise_score"],
+        "organization_score":  layout_data["organization_score"],
+        "layout_feedback":     layout_data["layout_feedback"],
+    })
 
 
 @app.route('/health', methods=['GET'])
