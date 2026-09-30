@@ -27,6 +27,7 @@ npm run dev
 ```bash
 cd nlp-service
 pip install flask scikit-learn sentence-transformers spacy
+pip install -r requirements.txt 
 python -m spacy download en_core_web_sm
 python nlp_api.py
 ```
